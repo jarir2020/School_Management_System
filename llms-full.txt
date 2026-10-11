@@ -1,0 +1,45 @@
+# School_Management_System — project context
+
+## Purpose
+
+Build a realistic school administration and fee management application while learning the .NET ecosystem. The system is for school administrators, admission officers, teachers, accountants, principals, and parents or students.
+
+## Current state
+
+This repository currently contains planning and project guidance only. The application solution and source code have not been scaffolded. Do not claim that any planned workflow is implemented.
+
+## Architecture
+
+- C# with ASP.NET Core and a Blazor Web App using Interactive Server rendering initially
+- MySQL with Entity Framework Core and the Pomelo provider
+- ASP.NET Core Identity, role-based access, and policy-based authorization
+- A modular monolith with logical modules for school setup, admissions, academics, finance, and communication
+- xUnit, integration tests, and browser-based end-to-end testing as the project develops
+
+## Main roles
+
+Super Admin; Admission Officer; Teacher; Accountant; Parent/Student; Principal. Permissions must be checked on the server, including access to records belonging to a particular student or class.
+
+## Planned modules
+
+1. School profile, academic years, terms, classes, sections, subjects, assignments, grading scales, and calendar.
+2. Admission applications, private documents, review and approval, students, guardians, and yearly enrollment history.
+3. Teacher assignments, attendance sessions and records, correction requests, reports, and parent notifications.
+4. Examinations, subject marks, validation, result submission and approval, configurable grades, report cards, and revision history.
+5. Fee structures, discounts, invoices, partial payments, allocations, receipts, refunds, overdue tracking, and reports.
+6. Excel import/export, PDF documents, authorized downloads, announcements, messaging, email, and audit logs.
+7. Security review, backup strategy, production configuration, and deployment.
+
+## Core rules
+
+- Use `decimal` for money and a consistent school timezone for date-based billing.
+- Separate invoices from payments; only verified successful payments count toward balances.
+- Keep admission, enrollment, payment, and approval operations idempotent and transactional where appropriate.
+- Use unique database constraints to prevent duplicate attendance and marks records.
+- Preserve result approval and revision history; published results cannot be silently changed.
+- Store private uploads outside the public web root and authorize every download.
+- Do not commit credentials, private student information, uploaded documents, or local databases.
+
+## Roadmap and guidance
+
+The authoritative scope and implementation details are in [plan.md](plan.md). Follow [AGENTS.md](AGENTS.md) and keep [README.md](README.md), this file, and [llms.txt](llms.txt) synchronized with the actual repository state.

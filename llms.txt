@@ -1,0 +1,15 @@
+# School_Management_System
+
+> A learning-focused school administration and fee management platform planned with ASP.NET Core, Blazor Interactive Server, EF Core, and MySQL.
+
+## Project documents
+
+- [README](README.md): current repository status, planned stack, and module overview
+- [Implementation plan](plan.md): architecture, roles, data model, workflows, calculations, and seven-phase roadmap
+- [Agent instructions](AGENTS.md): implementation workflow, coding guidance, and data-protection rules
+- [Full AI context](llms-full.txt): expanded project summary
+- [MIT License](LICENSE): repository license
+
+## Current status
+
+The repository is at the planning stage. Application source, migrations, and runnable commands have not been added yet. Treat planned capabilities as future work until implementation is present.
