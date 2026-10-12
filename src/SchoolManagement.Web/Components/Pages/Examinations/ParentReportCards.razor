@@ -39,6 +39,7 @@ else
                         <tr><td>@subject.ClassName — @subject.SectionName</td><td>@subject.SubjectName</td><td>@subject.MarksObtained.ToString("0.##") / @subject.FullMarks.ToString("0.##")</td><td>@subject.Grade.Percentage.ToString("0.##")%</td><td>@subject.Grade.LetterGrade</td><td>@subject.Grade.GradePoint.ToString("0.00")</td><td>@(subject.Grade.IsPassing ? "Pass" : "Needs improvement")</td></tr>
                     }</tbody>
                 </table></div></div>
+                <div class="px-3 pb-3"><a class="btn btn-sm btn-outline-primary" href="@($"/parent/results/{card.StudentId}/{card.ExaminationId}/pdf")">Download report card PDF</a></div>
             </details>
         }
     </div>

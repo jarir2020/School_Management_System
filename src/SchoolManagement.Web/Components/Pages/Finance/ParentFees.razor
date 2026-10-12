@@ -40,6 +40,7 @@ else
                     <div><h2 class="h5 mb-1">@invoice.StudentName <small class="text-body-secondary">(@invoice.StudentNumber)</small></h2><strong>@invoice.InvoiceNumber</strong> · @invoice.FeeName<p class="text-body-secondary mb-0">@invoice.AcademicYearName · @invoice.ClassName / @invoice.SectionName · due @invoice.DueDate:dd MMM yyyy</p></div>
                     <div class="text-end">Total <strong class="d-block">@Money(invoice.TotalAmount)</strong><span class="text-body-secondary">Paid @Money(invoice.AmountReceived) · balance </span><strong>@Money(invoice.Balance)</strong>@if (invoice.IsOverdue) { <span class="badge text-bg-danger ms-2">Overdue</span> }</div>
                 </div>
+                <a class="btn btn-sm btn-outline-secondary mt-3" href="@($"/finance/invoices/{invoice.Id}/pdf")">Download invoice PDF</a>
                 @if (invoice.Balance > 0 && invoice.Status == FeeInvoiceStatus.Issued)
                 {
                     <button class="btn btn-primary mt-3" disabled="@_startingPayment" @onclick="() => StartCheckoutAsync(invoice.Id)">Pay online with SSLCOMMERZ</button>
@@ -50,7 +51,7 @@ else
                     <details class="mt-3"><summary>Payment history (@invoice.Payments.Count)</summary><div class="table-responsive mt-2"><table class="table table-sm mb-0"><thead><tr><th>Created (UTC)</th><th>Method / reference</th><th>Status</th><th>Amount</th><th>Receipt</th></tr></thead><tbody>
                         @foreach (var payment in invoice.Payments)
                         {
-                            <tr><td>@payment.CreatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</td><td>@payment.Method @if (!string.IsNullOrWhiteSpace(payment.Reference)) { <span>· @payment.Reference</span> } @if (!string.IsNullOrWhiteSpace(payment.GatewayTransactionId)) { <small class="d-block text-body-secondary">@payment.GatewayTransactionId</small> }</td><td>@payment.Status</td><td>@Money(payment.Amount)</td><td>@if (!string.IsNullOrWhiteSpace(payment.ReceiptNumber)) { <a href="@($"/finance/receipts/{payment.Id}")">@payment.ReceiptNumber</a> } else { <span>—</span> }</td></tr>
+                            <tr><td>@payment.CreatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</td><td>@payment.Method @if (!string.IsNullOrWhiteSpace(payment.Reference)) { <span>· @payment.Reference</span> } @if (!string.IsNullOrWhiteSpace(payment.GatewayTransactionId)) { <small class="d-block text-body-secondary">@payment.GatewayTransactionId</small> }</td><td>@payment.Status</td><td>@Money(payment.Amount)</td><td>@if (!string.IsNullOrWhiteSpace(payment.ReceiptNumber)) { <a href="@($"/finance/receipts/{payment.Id}")">@payment.ReceiptNumber</a><a class="d-block small" href="@($"/finance/receipts/{payment.Id}/pdf")">Download PDF</a> } else { <span>—</span> }</td></tr>
                         }
                     </tbody></table></div></details>
                 }

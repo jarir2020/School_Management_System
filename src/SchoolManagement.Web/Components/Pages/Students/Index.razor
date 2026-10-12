@@ -12,7 +12,7 @@
 
 <PageTitle>Students</PageTitle>
 <h1>Students</h1>
-<p>Search admitted students, review their enrollment history, and export the filtered list as CSV.</p>
+<p>Search admitted students, review their enrollment history, and export the filtered list.</p>
 
 <EditForm Model="_form" OnValidSubmit="SearchAsync" FormName="student-search" class="card mb-4">
     <div class="card-body">
@@ -54,6 +54,7 @@
             <div class="col-sm-6 col-lg-2 d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Search</button>
                 <button type="button" class="btn btn-outline-secondary" @onclick="ExportCsv">CSV</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="ExportExcel">Excel</button>
             </div>
         </div>
     </div>
@@ -71,11 +72,12 @@ else
 {
     <div class="table-responsive">
         <table class="table table-striped align-middle">
-            <thead><tr><th>Student number</th><th>Name</th><th>Date of birth</th><th>Current enrollment</th><th>Guardian phone</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Record ID</th><th>Student number</th><th>Name</th><th>Date of birth</th><th>Current enrollment</th><th>Guardian phone</th><th>Status</th><th></th></tr></thead>
             <tbody>
                 @foreach (var student in _page.Items)
                 {
                     <tr>
+                        <td>@student.Id</td>
                         <td class="text-nowrap">@student.StudentNumber</td>
                         <td>@student.FullName</td>
                         <td class="text-nowrap">@student.DateOfBirth.ToString("dd MMM yyyy")</td>
@@ -144,6 +146,16 @@ else
         if (_form.AcademicYearId > 0) query.Add($"academicYearId={_form.AcademicYearId}");
         if (_form.SectionId > 0) query.Add($"sectionId={_form.SectionId}");
         Navigation.NavigateTo("/admin/students/export.csv" + (query.Count == 0 ? "" : "?" + string.Join("&", query)));
+    }
+
+    private void ExportExcel()
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_form.Search)) query.Add($"search={Uri.EscapeDataString(_form.Search)}");
+        if (Enum.TryParse<StudentStatus>(_form.Status, out var status)) query.Add($"status={status}");
+        if (_form.AcademicYearId > 0) query.Add($"academicYearId={_form.AcademicYearId}");
+        if (_form.SectionId > 0) query.Add($"sectionId={_form.SectionId}");
+        Navigation.NavigateTo("/admin/students/export.xlsx" + (query.Count == 0 ? "" : "?" + string.Join("&", query)), forceLoad: true);
     }
 
     private sealed class StudentSearchForm

@@ -26,6 +26,7 @@ else
         <p class="text-body-secondary mt-4 mb-0">This receipt records a successful payment applied to the invoice shown above.</p>
     </div></article>
     <button class="btn btn-primary mt-3 no-print" @onclick="PrintAsync">Print receipt</button>
+    <a class="btn btn-outline-primary mt-3 ms-2 no-print" href="@($"/finance/receipts/{PaymentId}/pdf")">Download PDF</a>
 }
 
 @code {

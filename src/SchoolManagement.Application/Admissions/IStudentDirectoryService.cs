@@ -8,5 +8,5 @@ public interface IStudentDirectoryService
 
     Task UpdateAsync(int id, StudentUpdateInput input, string changedByUserId, CancellationToken cancellationToken = default);
 
-    Task<StudentExportFile> ExportCsvAsync(StudentSearchFilter filter, CancellationToken cancellationToken = default);
+    Task<StudentExportFile> ExportCsvAsync(StudentSearchFilter filter, string actorUserId, CancellationToken cancellationToken = default);
 }

@@ -23,5 +23,5 @@ public interface IAdmissionService
         string reviewerUserId,
         CancellationToken cancellationToken = default);
 
-    Task<PrivateDocumentDownload?> GetDocumentAsync(int documentId, CancellationToken cancellationToken = default);
+    Task<PrivateDocumentDownload?> GetDocumentAsync(string actorUserId, int documentId, CancellationToken cancellationToken = default);
 }

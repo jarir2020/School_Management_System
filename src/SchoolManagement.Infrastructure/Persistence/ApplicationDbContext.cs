@@ -44,6 +44,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
     public DbSet<PaymentReceipt> PaymentReceipts => Set<PaymentReceipt>();
     public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<SchoolMessage> Messages => Set<SchoolMessage>();
+    public DbSet<MessageAttachment> MessageAttachments => Set<MessageAttachment>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<EmailOutboxMessage> EmailOutboxMessages => Set<EmailOutboxMessage>();
+    public DbSet<BackgroundJobLog> BackgroundJobLogs => Set<BackgroundJobLog>();
 
     public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
         IsolationLevel isolationLevel,
@@ -713,6 +720,92 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany()
                 .HasForeignKey(item => item.ReviewedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Announcement>(entity =>
+        {
+            entity.ToTable("Announcements");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Title).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.Content).HasMaxLength(8000).IsRequired();
+            entity.Property(item => item.Audience).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.PublishedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(item => new { item.Audience, item.PublishedAtUtc });
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Conversation>(entity =>
+        {
+            entity.ToTable("Conversations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ParentUserId).HasMaxLength(450).IsRequired();
+            entity.Property(item => item.TeacherUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(item => new { item.StudentId, item.ParentUserId, item.TeacherUserId }).IsUnique();
+            entity.HasIndex(item => new { item.ParentUserId, item.LastMessageAtUtc });
+            entity.HasIndex(item => new { item.TeacherUserId, item.LastMessageAtUtc });
+            entity.HasOne(item => item.Student).WithMany().HasForeignKey(item => item.StudentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.ParentUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.TeacherUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SchoolMessage>(entity =>
+        {
+            entity.ToTable("Messages");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SenderUserId).HasMaxLength(450).IsRequired();
+            entity.Property(item => item.Content).HasMaxLength(4000).IsRequired();
+            entity.HasIndex(item => new { item.ConversationId, item.SentAtUtc });
+            entity.HasOne(item => item.Conversation).WithMany(conversation => conversation.Messages).HasForeignKey(item => item.ConversationId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.SenderUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MessageAttachment>(entity =>
+        {
+            entity.ToTable("MessageAttachments");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OriginalFileName).HasMaxLength(180).IsRequired();
+            entity.Property(item => item.ContentType).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.StorageKey).HasMaxLength(80).IsRequired();
+            entity.HasIndex(item => item.StorageKey).IsUnique();
+            entity.HasOne(item => item.Message).WithMany(message => message.Attachments).HasForeignKey(item => item.MessageId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("AuditLogs");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ActorUserId).HasMaxLength(450).IsRequired();
+            entity.Property(item => item.Action).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.EntityType).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.EntityId).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.Details).HasMaxLength(500).IsRequired();
+            entity.HasIndex(item => item.OccurredAtUtc);
+            entity.HasIndex(item => new { item.EntityType, item.EntityId });
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmailOutboxMessage>(entity =>
+        {
+            entity.ToTable("EmailOutboxMessages");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Recipient).HasMaxLength(320).IsRequired();
+            entity.Property(item => item.Subject).HasMaxLength(180).IsRequired();
+            entity.Property(item => item.HtmlBody).HasMaxLength(12000).IsRequired();
+            entity.Property(item => item.DeduplicationKey).HasMaxLength(220).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.LastError).HasMaxLength(500).IsRequired();
+            entity.HasIndex(item => item.DeduplicationKey).IsUnique();
+            entity.HasIndex(item => new { item.Status, item.NextAttemptAtUtc });
+        });
+
+        modelBuilder.Entity<BackgroundJobLog>(entity =>
+        {
+            entity.ToTable("BackgroundJobLogs");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.JobType).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.Details).HasMaxLength(500).IsRequired();
+            entity.HasIndex(item => item.RecordedAtUtc);
         });
     }
 }

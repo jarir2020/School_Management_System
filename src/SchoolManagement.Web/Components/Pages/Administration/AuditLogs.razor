@@ -1,0 +1,71 @@
+@page "/admin/audit"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Administration
+@inject IPhaseSixService PhaseSix
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Audit log</PageTitle>
+<h1>Audit and background activity</h1>
+<p>Audit events are append-only in the application. This page provides a read-only view of recent exports, downloads, announcements, imports, and messages.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert alert-danger" role="status">@_message</div>
+}
+else if (_audit is null || _jobs is null)
+{
+    <p>Loading activity…</p>
+}
+else
+{
+    <section class="card mb-4"><div class="card-body">
+        <h2 class="h5">Recent audit events</h2>
+        @if (_audit.Count == 0) { <p class="text-body-secondary mb-0">No events recorded yet.</p> }
+        else
+        {
+            <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>Time (UTC)</th><th>Account</th><th>Action</th><th>Record</th><th>Details</th></tr></thead><tbody>
+                @foreach (var item in _audit)
+                {
+                    <tr><td>@item.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td><td>@item.ActorName</td><td>@item.Action</td><td>@item.EntityType @item.EntityId</td><td>@item.Details</td></tr>
+                }
+            </tbody></table></div>
+        }
+    </div></section>
+
+    <section class="card"><div class="card-body">
+        <h2 class="h5">Background job runs</h2>
+        @if (_jobs.Count == 0) { <p class="text-body-secondary mb-0">No background runs recorded yet.</p> }
+        else
+        {
+            <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>Time (UTC)</th><th>Job</th><th>Status</th><th>Attempts</th><th>Details</th></tr></thead><tbody>
+                @foreach (var item in _jobs)
+                {
+                    <tr><td>@item.RecordedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td><td>@item.JobType</td><td>@item.Status</td><td>@item.AttemptCount</td><td>@item.Details</td></tr>
+                }
+            </tbody></table></div>
+        }
+    </div></section>
+}
+
+@code {
+    private IReadOnlyList<AuditLogSummary>? _audit;
+    private IReadOnlyList<BackgroundJobSummary>? _jobs;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        try
+        {
+            _audit = await PhaseSix.GetAuditLogsAsync(actorUserId);
+            _jobs = await PhaseSix.GetBackgroundJobLogsAsync(actorUserId);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or InvalidOperationException)
+        {
+            _message = exception.Message;
+        }
+    }
+}

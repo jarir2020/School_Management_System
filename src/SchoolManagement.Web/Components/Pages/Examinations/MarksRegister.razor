@@ -2,8 +2,11 @@
 @attribute [Authorize(Roles = SchoolRoles.Teacher)]
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using SchoolManagement.Application.Administration
 @using SchoolManagement.Application.Examinations
 @inject IExaminationService Examinations
+@inject IPhaseSixService PhaseSix
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Enter examination marks</PageTitle>
@@ -51,6 +54,16 @@ else
     <h2 class="h4">@_register.WorkItem.ExaminationName · @_register.WorkItem.ClassName — @_register.WorkItem.SectionName</h2>
     <p class="lead">@_register.WorkItem.SubjectName · @_register.WorkItem.AcademicYearName / @_register.WorkItem.TermName</p>
     <div class="alert alert-info">Enter marks from 0 to @_register.WorkItem.FullMarks:0.##. Leave a mark blank if it is not ready; every active student needs a saved mark before submission.</div>
+    @if (_importErrors.Count > 0)
+    {
+        <div class="alert alert-danger"><strong>No marks were imported.</strong> Correct the workbook and upload it again.</div>
+        <div class="table-responsive mb-3"><table class="table table-sm"><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>
+            @foreach (var error in _importErrors)
+            {
+                <tr><td>@(error.Row == 0 ? "Roster" : error.Row)</td><td>@error.Message</td></tr>
+            }
+        </tbody></table></div>
+    }
 
     @if (_register.Students.Count == 0)
     {
@@ -58,6 +71,15 @@ else
     }
     else
     {
+        <section class="card mb-3"><div class="card-body">
+            <h3 class="h6">Excel marks import</h3>
+            <p class="text-body-secondary">Use the roster-specific template. The workbook is checked against this teacher's assigned subject, active students, and full marks before one atomic save.</p>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="@($"/teacher/examinations/{ExamSubjectId}/marks-template.xlsx")">Download marks template</a>
+                <label class="form-label mb-0" for="marks-import">Upload filled workbook</label>
+                <InputFile id="marks-import" class="form-control" style="max-width: 360px" accept=".xlsx" OnChange="ImportMarksAsync" disabled="@_isSaving" />
+            </div>
+        </div></section>
         <EditForm Model="_form" OnValidSubmit="SaveDraftAsync" FormName="save-student-marks">
             <div class="table-responsive"><table class="table table-striped align-middle">
                 <thead><tr><th>Student number</th><th>Student</th><th>Marks</th><th>Out of</th></tr></thead>
@@ -85,6 +107,7 @@ else
     private bool _isError;
     private bool _isSaving;
     private bool _submitted;
+    private IReadOnlyList<ImportRowError> _importErrors = [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -135,6 +158,32 @@ else
             _isSaving = false;
         });
         _isSaving = false;
+    }
+
+    private async Task ImportMarksAsync(InputFileChangeEventArgs args)
+    {
+        if (_register is null) return;
+        _isSaving = true;
+        _importErrors = [];
+        try
+        {
+            await using var fileStream = args.File.OpenReadStream(5 * 1024 * 1024);
+            using var memory = new MemoryStream();
+            await fileStream.CopyToAsync(memory);
+            _importErrors = await PhaseSix.ImportMarksAsync(_teacherUserId, ExamSubjectId, memory.ToArray());
+            if (_importErrors.Count == 0)
+            {
+                _isError = false;
+                _message = "Marks workbook validated and saved as draft marks.";
+                await LoadAsync();
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException or IOException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+        finally { _isSaving = false; }
     }
 
     private async Task SubmitMarksAsync()

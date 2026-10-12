@@ -9,8 +9,11 @@ using SchoolManagement.Infrastructure.Persistence;
 using SchoolManagement.Infrastructure.Seeding;
 using SchoolManagement.Application.Admissions;
 using SchoolManagement.Application.Finance;
+using SchoolManagement.Application.Administration;
 using SchoolManagement.Core.Authorization;
 using SchoolManagement.Core.Enums;
+using System.Security.Claims;
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,7 +37,8 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddSchoolManagementInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddScoped<IEmailSender<ApplicationUser>, QueuedIdentityEmailSender>();
+QuestPDF.Settings.License = LicenseType.Community;
 
 var app = builder.Build();
 
@@ -65,11 +69,13 @@ Action<Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder> admissionS
     policy.RequireRole(SchoolRoles.SuperAdmin, SchoolRoles.AdmissionOfficer);
 
 app.MapGet("/admin/admissions/documents/{documentId:int}", async (
+        HttpContext http,
         int documentId,
         IAdmissionService admissions,
         CancellationToken cancellationToken) =>
     {
-        var document = await admissions.GetDocumentAsync(documentId, cancellationToken);
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var document = await admissions.GetDocumentAsync(actorUserId, documentId, cancellationToken);
         return document is null
             ? Results.NotFound()
             : Results.File(document.Content, document.ContentType, Path.GetFileName(document.FileName));
@@ -77,6 +83,7 @@ app.MapGet("/admin/admissions/documents/{documentId:int}", async (
     .RequireAuthorization(admissionStaffPolicy);
 
 app.MapGet("/admin/students/export.csv", async (
+        HttpContext http,
         string? search,
         StudentStatus? status,
         int? academicYearId,
@@ -84,14 +91,158 @@ app.MapGet("/admin/students/export.csv", async (
         IStudentDirectoryService students,
         CancellationToken cancellationToken) =>
     {
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var export = await students.ExportCsvAsync(new StudentSearchFilter(
             search,
             status,
             academicYearId,
-            sectionId), cancellationToken);
+            sectionId), actorUserId, cancellationToken);
         return Results.File(export.Content, export.ContentType, export.FileName);
     })
     .RequireAuthorization(admissionStaffPolicy);
+
+app.MapGet("/admin/students/export.xlsx", async (
+        HttpContext http,
+        string? search,
+        StudentStatus? status,
+        int? academicYearId,
+        int? sectionId,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var file = await phaseSix.ExportStudentsExcelAsync(
+            new StudentSearchFilter(search, status, academicYearId, sectionId), actorUserId, cancellationToken);
+        return Results.File(file.Content, file.ContentType, file.FileName);
+    })
+    .RequireAuthorization(admissionStaffPolicy);
+
+app.MapGet("/finance/export.xlsx", async (
+        HttpContext http,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var file = await phaseSix.ExportFinanceReportExcelAsync(actorUserId, cancellationToken);
+        return Results.File(file.Content, file.ContentType, file.FileName);
+    })
+    .RequireAuthorization(policy => policy.RequireRole(SchoolRoles.SuperAdmin, SchoolRoles.Accountant));
+
+app.MapGet("/admin/students/import-template.xlsx", async (
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var file = await phaseSix.CreateStudentImportTemplateAsync(cancellationToken);
+        return Results.File(file.Content, file.ContentType, file.FileName);
+    })
+    .RequireAuthorization(admissionStaffPolicy);
+
+app.MapGet("/teacher/examinations/{examSubjectId:int}/marks-template.xlsx", async (
+        HttpContext http,
+        int examSubjectId,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var teacherUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        try
+        {
+            var file = await phaseSix.CreateMarksImportTemplateAsync(teacherUserId, examSubjectId, cancellationToken);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (UnauthorizedAccessException) { return Results.Forbid(); }
+        catch (KeyNotFoundException) { return Results.NotFound(); }
+    })
+    .RequireAuthorization(policy => policy.RequireRole(SchoolRoles.Teacher));
+
+app.MapGet("/admin/students/documents.zip", async (
+        HttpContext http,
+        string studentIds,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var ids = studentIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => int.TryParse(value, out var id) ? id : 0)
+            .ToArray();
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        try
+        {
+            var file = await phaseSix.ExportStudentDocumentsZipAsync(actorUserId, ids, cancellationToken);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (UnauthorizedAccessException) { return Results.Forbid(); }
+        catch (ArgumentException exception) { return Results.BadRequest(exception.Message); }
+    })
+    .RequireAuthorization(admissionStaffPolicy);
+
+app.MapGet("/finance/invoices/{invoiceId:int}/pdf", async (
+        HttpContext http,
+        int invoiceId,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        try
+        {
+            var file = await phaseSix.RenderInvoicePdfAsync(actorUserId, invoiceId, cancellationToken);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (UnauthorizedAccessException) { return Results.Forbid(); }
+        catch (KeyNotFoundException) { return Results.NotFound(); }
+    })
+    .RequireAuthorization(policy => policy.RequireRole(SchoolRoles.SuperAdmin, SchoolRoles.Accountant, SchoolRoles.ParentStudent));
+
+app.MapGet("/finance/receipts/{paymentId:int}/pdf", async (
+        HttpContext http,
+        int paymentId,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        try
+        {
+            var file = await phaseSix.RenderReceiptPdfAsync(actorUserId, paymentId, cancellationToken);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (UnauthorizedAccessException) { return Results.Forbid(); }
+        catch (KeyNotFoundException) { return Results.NotFound(); }
+    })
+    .RequireAuthorization(policy => policy.RequireRole(SchoolRoles.SuperAdmin, SchoolRoles.Accountant, SchoolRoles.ParentStudent));
+
+app.MapGet("/parent/results/{studentId:int}/{examinationId:int}/pdf", async (
+        HttpContext http,
+        int studentId,
+        int examinationId,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        try
+        {
+            var file = await phaseSix.RenderReportCardPdfAsync(actorUserId, studentId, examinationId, cancellationToken);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (UnauthorizedAccessException) { return Results.Forbid(); }
+        catch (KeyNotFoundException) { return Results.NotFound(); }
+    })
+    .RequireAuthorization(policy => policy.RequireRole(SchoolRoles.ParentStudent));
+
+app.MapGet("/parent/messages/attachments/{attachmentId:int}", async (
+        HttpContext http,
+        int attachmentId,
+        IPhaseSixService phaseSix,
+        CancellationToken cancellationToken) =>
+    {
+        var actorUserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        try
+        {
+            var file = await phaseSix.GetMessageAttachmentAsync(actorUserId, attachmentId, cancellationToken);
+            return file is null
+                ? Results.NotFound()
+                : Results.File(file.Content, file.ContentType, Path.GetFileName(file.FileName));
+        }
+        catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    })
+    .RequireAuthorization(policy => policy.RequireRole(SchoolRoles.ParentStudent, SchoolRoles.Teacher));
 
 app.MapPost("/payments/sslcommerz/success", async (
         HttpRequest request,

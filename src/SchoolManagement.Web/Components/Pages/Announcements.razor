@@ -1,0 +1,107 @@
+@page "/announcements"
+@attribute [Authorize]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel.DataAnnotations
+@using SchoolManagement.Application.Administration
+@inject IPhaseSixService PhaseSix
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>School announcements</PageTitle>
+<h1>School announcements</h1>
+<p>Notices are visible to the selected school audience after publication.</p>
+
+<AuthorizeView Roles="@(SchoolRoles.SuperAdmin + "," + SchoolRoles.Principal)">
+    <Authorized Context="announcementAdminContext">
+        <section class="card mb-4"><div class="card-body">
+            <h2 class="h5">Publish an announcement</h2>
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+            }
+            <EditForm Model="_form" OnValidSubmit="PublishAsync" FormName="announcement-publish">
+                <DataAnnotationsValidator />
+                <div class="mb-3"><label class="form-label" for="announcement-title">Title</label><InputText id="announcement-title" class="form-control" @bind-Value="_form.Title" /><ValidationMessage For="() => _form.Title" class="text-danger" /></div>
+                <div class="mb-3"><label class="form-label" for="announcement-audience">Audience</label><InputSelect id="announcement-audience" class="form-select" @bind-Value="_form.Audience"><option>Everyone</option><option>Parents</option><option>Staff</option></InputSelect></div>
+                <div class="mb-3"><label class="form-label" for="announcement-content">Notice</label><InputTextArea id="announcement-content" class="form-control" rows="5" @bind-Value="_form.Content" /><ValidationMessage For="() => _form.Content" class="text-danger" /></div>
+                <button class="btn btn-primary" type="submit" disabled="@_publishing">Publish notice</button>
+            </EditForm>
+        </div></section>
+    </Authorized>
+</AuthorizeView>
+
+@if (_announcements is null)
+{
+    <p>Loading announcements…</p>
+}
+else if (_announcements.Count == 0)
+{
+    <div class="alert alert-info">There are no announcements for your account.</div>
+}
+else
+{
+    <div class="d-grid gap-3">
+        @foreach (var item in _announcements)
+        {
+            <article class="card"><div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between gap-3"><h2 class="h5 mb-0">@item.Title</h2><span class="text-body-secondary">@item.PublishedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span></div>
+                <p class="mt-3 mb-2">@item.Content</p>
+                <small class="text-body-secondary">Published by @item.PublishedByName · @item.Audience</small>
+            </div></article>
+        }
+    </div>
+}
+
+@code {
+    private readonly AnnouncementForm _form = new();
+    private IReadOnlyList<AnnouncementSummary>? _announcements;
+    private string _actorUserId = "";
+    private string? _message;
+    private bool _isError;
+    private bool _publishing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task PublishAsync()
+    {
+        _publishing = true;
+        try
+        {
+            await PhaseSix.CreateAnnouncementAsync(_actorUserId, new AnnouncementInput(_form.Title, _form.Content, _form.Audience));
+            _form.Title = "";
+            _form.Content = "";
+            _message = "Announcement published.";
+            _isError = false;
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _message = exception.Message;
+            _isError = true;
+        }
+        finally { _publishing = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _announcements = await PhaseSix.GetAnnouncementsAsync(_actorUserId); }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or InvalidOperationException)
+        {
+            _announcements = [];
+            _message = exception.Message;
+            _isError = true;
+        }
+    }
+
+    private sealed class AnnouncementForm
+    {
+        [Required, StringLength(160)] public string Title { get; set; } = "";
+        [Required, StringLength(8000)] public string Content { get; set; } = "";
+        public string Audience { get; set; } = "Everyone";
+    }
+}

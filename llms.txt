@@ -12,7 +12,7 @@
 
 ## Current status
 
-Phases 1–5 are implemented in source and their migrations are applied to the configured local MySQL database. Phase 2 includes applications, private documents, role-protected review, enrollment, and student directory tools. Phase 3 includes teacher assignments, one-time attendance registers, correction approval, scoped daily/monthly reports, and guardian-linked parent attendance. Phase 4 includes academic terms, exams, teacher-scoped marks, review and publication, configurable grade bands, linked-parent report cards, and reasoned revisions. Phase 5 includes fee assignments, invoice and discount workflows, partial collections, receipts, SSLCOMMERZ sandbox payment/refund integration, overdue reminder drafts, and financial reports. The solution builds; the Phase 2–5 browser workflows still need manual walkthroughs. Sandbox credentials/public callback setup and Phase 6 communications, imports/exports, and deployment remain outstanding.
+Phases 1–6 are implemented in source. The Phase 6 migration is generated but has not been applied because the local MySQL service is unavailable in this environment. Phase 6 adds validated student and teacher marks workbook imports, Excel student and finance exports, invoice/receipt/report-card PDFs, staff-authorized document ZIPs, audience-based announcements, parent-teacher messages with private attachments, append-only application audit events, SMTP-backed identity/reminder email, and a hosted outbox worker. The solution builds; Phase 2–6 browser walkthroughs remain pending. SSLCOMMERZ needs sandbox credentials and a public HTTPS callback host; SMTP needs local credentials.
 
 ## Phase walkthroughs
 
@@ -21,3 +21,4 @@ Phases 1–5 are implemented in source and their migrations are applied to the c
 - [Phase 3 guide](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md)
 - [Phase 4 guide](guides/PHASE4_EXAMINATIONS_RESULTS_QUICK_GUIDE.md)
 - [Phase 5 guide](guides/PHASE5_FEES_FINANCE_QUICK_GUIDE.md)
+- [Phase 6 guide](guides/PHASE6_IMPORTS_EXPORTS_COMMUNICATION_QUICK_GUIDE.md)

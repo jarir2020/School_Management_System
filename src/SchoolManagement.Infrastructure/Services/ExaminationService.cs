@@ -341,6 +341,15 @@ public sealed class ExaminationService(
             }
         }
 
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = teacherUserId,
+            Action = "MarksSaved",
+            EntityType = "ExamSubject",
+            EntityId = examSubjectId.ToString(),
+            Details = $"Saved marks for {entries.Count} roster records.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -380,6 +389,15 @@ public sealed class ExaminationService(
             exam.Status = ExaminationStatus.Submitted;
         }
 
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = teacherUserId,
+            Action = "SubjectMarksSubmitted",
+            EntityType = "ExamSubject",
+            EntityId = examSubjectId.ToString(),
+            Details = "Submitted a complete active class roster for review.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -488,6 +506,15 @@ public sealed class ExaminationService(
             }
         }
 
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = reviewerUserId,
+            Action = approve ? "ExaminationApproved" : "ExaminationReturned",
+            EntityType = "Examination",
+            EntityId = examinationId.ToString(),
+            Details = approve ? "Results approved for publication." : "Results returned for correction.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -512,6 +539,15 @@ public sealed class ExaminationService(
         }
 
         exam.Status = ExaminationStatus.Published;
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = publisherUserId,
+            Action = "ExaminationPublished",
+            EntityType = "Examination",
+            EntityId = examinationId.ToString(),
+            Details = "Published approved examination results.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -639,6 +675,15 @@ public sealed class ExaminationService(
         mark.MarksObtained = newMarks;
         mark.UpdatedByUserId = actorUserId;
         mark.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "PublishedMarkRevised",
+            EntityType = "StudentMark",
+            EntityId = mark.Id.ToString(),
+            Details = "A reasoned revision was added to a published mark.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }

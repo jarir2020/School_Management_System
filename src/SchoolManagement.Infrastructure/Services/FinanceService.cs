@@ -240,6 +240,15 @@ public sealed class FinanceService(
             issued++;
         }
 
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "InvoicesIssued",
+            EntityType = "FeeStructure",
+            EntityId = feeStructureId.ToString(),
+            Details = $"Issued {issued} invoice(s).",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return issued;
@@ -273,6 +282,15 @@ public sealed class FinanceService(
             Reason = reason,
             RequestedByUserId = actorUserId,
             RequestedAtUtc = DateTimeOffset.UtcNow
+        });
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "DiscountRequested",
+            EntityType = "StudentFeeAssignment",
+            EntityId = assignment.Id.ToString(),
+            Details = "Submitted a fee discount request.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
         });
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -346,6 +364,15 @@ public sealed class FinanceService(
         request.ReviewedByUserId = reviewerUserId;
         request.ReviewedAtUtc = DateTimeOffset.UtcNow;
         request.ReviewRemarks = cleanRemarks;
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = reviewerUserId,
+            Action = approve ? "DiscountApproved" : "DiscountRejected",
+            EntityType = "FeeDiscountRequest",
+            EntityId = requestId.ToString(),
+            Details = approve ? "Discount request approved." : "Discount request rejected.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -472,6 +499,15 @@ public sealed class FinanceService(
         db.Payments.Add(payment);
         await db.SaveChangesAsync(cancellationToken);
         AddSuccessfulAllocationAndReceipt(db, payment, invoice.Id, input.Amount, now);
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "ManualPaymentRecorded",
+            EntityType = "Payment",
+            EntityId = payment.Id.ToString(),
+            Details = $"Recorded a {input.Method} payment of {input.Amount:0.00} {invoice.Currency}.",
+            OccurredAtUtc = now
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -642,6 +678,15 @@ public sealed class FinanceService(
             payment.GatewayBankTransactionId = validation.BankTransactionId;
             payment.GatewayRiskLevel = validation.RiskLevel;
             payment.PaidAtUtc = now;
+            db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = payment.CreatedByUserId,
+                Action = "GatewayPaymentNeedsReview",
+                EntityType = "Payment",
+                EntityId = payment.Id.ToString(),
+                Details = "Verified gateway callback was held for staff reconciliation.",
+                OccurredAtUtc = now
+            });
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return GatewayPaymentOutcome.ReviewRequired;
@@ -654,6 +699,15 @@ public sealed class FinanceService(
         payment.GatewayRiskLevel = validation.RiskLevel;
         payment.PaidAtUtc = now;
         AddSuccessfulAllocationAndReceipt(db, payment, payment.FeeInvoiceId, payment.Amount, now);
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = payment.CreatedByUserId,
+            Action = "GatewayPaymentVerified",
+            EntityType = "Payment",
+            EntityId = payment.Id.ToString(),
+            Details = $"Verified and recorded an online payment of {payment.Amount:0.00} {payment.Currency}.",
+            OccurredAtUtc = now
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return GatewayPaymentOutcome.Processed;
@@ -738,6 +792,15 @@ public sealed class FinanceService(
             RequestedAtUtc = DateTimeOffset.UtcNow,
             GatewayRefundTransactionId = payment.Method == PaymentMethod.OnlineGateway ? NewDocumentNumber("RF")[..30] : null
         });
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "RefundRequested",
+            EntityType = "Payment",
+            EntityId = payment.Id.ToString(),
+            Details = $"Submitted a refund request for {input.Amount:0.00} {payment.Currency}.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -812,6 +875,15 @@ public sealed class FinanceService(
         request.ReviewedByUserId = reviewerUserId;
         request.ReviewedAtUtc = DateTimeOffset.UtcNow;
         request.ReviewRemarks = cleanRemarks;
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = reviewerUserId,
+            Action = approve ? "RefundApproved" : "RefundRejected",
+            EntityType = "RefundRequest",
+            EntityId = refundRequestId.ToString(),
+            Details = approve ? "Refund request approved." : "Refund request rejected.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -965,6 +1037,15 @@ public sealed class FinanceService(
         request.Status = RefundStatus.Completed;
         request.ManualRefundReference = reference;
         request.CompletedAtUtc = DateTimeOffset.UtcNow;
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "ManualRefundCompleted",
+            EntityType = "RefundRequest",
+            EntityId = refundRequestId.ToString(),
+            Details = "Completed and reconciled a manual refund.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }

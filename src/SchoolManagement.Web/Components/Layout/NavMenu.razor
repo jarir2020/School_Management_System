@@ -46,6 +46,9 @@
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="admin/results/revisions">Result revisions</NavLink>
                         </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin/audit">Audit and background jobs</NavLink>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
                 <AuthorizeView Roles="@(SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)">
@@ -55,6 +58,9 @@
                         </div>
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="students">Students</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin/import-export">Imports and exports</NavLink>
                         </div>
                     </Authorized>
                 </AuthorizeView>
@@ -71,6 +77,9 @@
                         </div>
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="examinations/marks">Examination marks</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="messages">Parent messages</NavLink>
                         </div>
                     </Authorized>
                 </AuthorizeView>
@@ -100,6 +109,13 @@
                         </div>
                     </Authorized>
                 </AuthorizeView>
+                <AuthorizeView Roles="@SchoolRoles.Accountant">
+                    <Authorized Context="accountantContext">
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin/import-export">Imports and exports</NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
                 <AuthorizeView Roles="@SchoolRoles.ParentStudent">
                     <Authorized Context="parentContext">
                         <div class="nav-item px-3">
@@ -111,8 +127,14 @@
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="parent/fees">Children's fees</NavLink>
                         </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="messages">Message teachers</NavLink>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="announcements">School announcements</NavLink>
+                </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Manage">
                         <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name

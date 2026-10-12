@@ -15,6 +15,7 @@ using SchoolManagement.Infrastructure.Persistence;
 using SchoolManagement.Infrastructure.Seeding;
 using SchoolManagement.Infrastructure.Services;
 using SchoolManagement.Infrastructure.Payments;
+using SchoolManagement.Application.Administration;
 
 namespace SchoolManagement.Infrastructure;
 
@@ -67,6 +68,9 @@ public static class DependencyInjection
         services.AddScoped<IAttendanceService, AttendanceService>();
         services.AddScoped<IExaminationService, ExaminationService>();
         services.AddScoped<IFinanceService, FinanceService>();
+        services.AddScoped<IPhaseSixService, PhaseSixService>();
+        services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SectionName));
+        services.AddHostedService<PhaseSixBackgroundWorker>();
         services.Configure<SslCommerzOptions>(configuration.GetSection(SslCommerzOptions.SectionName));
         // Avoid HttpClientFactory request logging because validator/refund GETs contain merchant credentials in the query string.
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });

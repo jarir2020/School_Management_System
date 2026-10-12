@@ -1,0 +1,136 @@
+@page "/admin/import-export"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer + "," + SchoolRoles.Accountant)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using SchoolManagement.Application.Administration
+@using SchoolManagement.Core.Authorization
+@inject IPhaseSixService PhaseSix
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Imports and exports</PageTitle>
+<h1>Imports and exports</h1>
+<p>Download filtered student and finance spreadsheets, or validate a student roster before it is written to the database.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+<AuthorizeView Roles="@(SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)">
+    <Authorized>
+        <section class="card mb-4">
+            <div class="card-body">
+                <h2 class="h5">Student roster import</h2>
+                <p>Download the template, fill one row per admitted student, then upload it. All rows are checked before any records are saved. If a row has an error, correct the workbook and upload it again.</p>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <a class="btn btn-outline-primary" href="/admin/students/import-template.xlsx">Download Excel template</a>
+                    <a class="btn btn-outline-primary" href="/admin/students/export.xlsx">Export all students to Excel</a>
+                    <a class="btn btn-outline-secondary" href="/admin/students/export.csv">Export all students to CSV</a>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="student-import">Student workbook (.xlsx, up to 5 MB)</label>
+                    <InputFile id="student-import" class="form-control" accept=".xlsx" OnChange="ImportAsync" disabled="@_busy" />
+                </div>
+                @if (_importResult is not null)
+                {
+                    @if (_importResult.Succeeded)
+                    {
+                        <div class="alert alert-success mb-0">Imported @_importResult.ImportedCount student record(s), with their approved admission history, guardian, and enrollment.</div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-danger">No rows were imported. Fix the listed workbook rows and upload the file again.</div>
+                        <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Row</th><th>Validation issue</th></tr></thead><tbody>
+                            @foreach (var error in _importResult.Errors)
+                            {
+                                <tr><td>@error.Row</td><td>@error.Message</td></tr>
+                            }
+                        </tbody></table></div>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="card mb-4">
+            <div class="card-body">
+                <h2 class="h5">Private student documents ZIP</h2>
+                <p>Enter up to 50 admitted student record IDs separated by commas. Only admission documents for those students are included, after the server checks your role.</p>
+                <label class="form-label" for="document-student-ids">Student IDs</label>
+                <InputText id="document-student-ids" class="form-control mb-2" @bind-Value="_studentIds" placeholder="12, 18, 25" />
+                @if (StudentIdsAreValid)
+                {
+                    <a class="btn btn-outline-primary" href="@DocumentZipUrl">Download selected documents ZIP</a>
+                }
+                else
+                {
+                    <span class="text-body-secondary">Enter 1–50 positive student IDs.</span>
+                }
+            </div>
+        </section>
+    </Authorized>
+</AuthorizeView>
+
+<AuthorizeView Roles="@(SchoolRoles.SuperAdmin + "," + SchoolRoles.Accountant)">
+    <Authorized>
+        <section class="card">
+            <div class="card-body">
+                <h2 class="h5">Finance export</h2>
+                <p>Download current invoice balances and payments in an Excel workbook.</p>
+                <a class="btn btn-outline-primary" href="/finance/export.xlsx">Export invoice report</a>
+            </div>
+        </section>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private const long MaximumFileBytes = 5 * 1024 * 1024;
+    private string _actorUserId = "";
+    private string _studentIds = "";
+    private string? _message;
+    private bool _isError;
+    private bool _busy;
+    private StudentImportResult? _importResult;
+
+    private int[] ParsedStudentIds => _studentIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(value => int.TryParse(value, out var id) ? id : 0)
+        .Where(id => id > 0)
+        .Distinct()
+        .ToArray();
+
+    private bool StudentIdsAreValid =>
+        !string.IsNullOrWhiteSpace(_studentIds)
+        && _studentIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length == ParsedStudentIds.Length
+        && ParsedStudentIds.Length is > 0 and <= 50;
+
+    private string DocumentZipUrl => $"/admin/students/documents.zip?studentIds={Uri.EscapeDataString(string.Join(',', ParsedStudentIds))}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+    }
+
+    private async Task ImportAsync(InputFileChangeEventArgs args)
+    {
+        _busy = true;
+        _importResult = null;
+        _message = null;
+        try
+        {
+            await using var fileStream = args.File.OpenReadStream(MaximumFileBytes);
+            using var memory = new MemoryStream();
+            await fileStream.CopyToAsync(memory);
+            _importResult = await PhaseSix.ImportStudentsAsync(_actorUserId, memory.ToArray());
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or UnauthorizedAccessException or IOException)
+        {
+            _message = exception.Message;
+            _isError = true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -33,6 +33,7 @@ else
     <div class="d-flex flex-wrap gap-2 mb-4">
         <a class="btn btn-outline-primary" href="/finance/discounts">Discount requests (@_dashboard.PendingDiscountCount pending)</a>
         <a class="btn btn-outline-primary" href="/finance/refunds">Refund requests (@_dashboard.PendingRefundCount pending)</a>
+        <a class="btn btn-outline-secondary" href="/finance/export.xlsx">Export invoices (Excel)</a>
         <span class="align-self-center text-body-secondary">Net outstanding invoices: @_dashboard.Report.OpenInvoiceCount · overdue: @_dashboard.Report.OverdueInvoiceCount</span>
     </div>
 
@@ -155,7 +156,7 @@ else
             <div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Invoice / student</th><th>Fee</th><th>Due</th><th>Amount</th><th>Received</th><th>Refunded</th><th>Balance</th><th>Collection</th></tr></thead><tbody>
                 @foreach (var invoice in _dashboard.Invoices)
                 {
-                    <tr id="invoice-@invoice.Id"><td><strong>@invoice.InvoiceNumber</strong><span class="d-block">@invoice.StudentName (@invoice.StudentNumber)</span><small class="text-body-secondary">@invoice.AcademicYearName · @invoice.ClassName / @invoice.SectionName</small>@if (invoice.Status == FeeInvoiceStatus.Cancelled) { <span class="badge text-bg-secondary ms-1">Cancelled</span> } else if (invoice.IsOverdue) { <span class="badge text-bg-danger ms-1">Overdue</span> }</td><td>@invoice.FeeName<small class="d-block text-body-secondary">@invoice.Category</small></td><td>@invoice.DueDate:dd MMM yyyy</td><td>@Money(invoice.TotalAmount)<small class="d-block text-body-secondary">Gross @Money(invoice.GrossAmount) · discount @Money(invoice.DiscountAmount)</small></td><td>@Money(invoice.AmountReceived)</td><td>@Money(invoice.AmountRefunded)</td><td><strong>@Money(invoice.Balance)</strong></td><td>
+                    <tr id="invoice-@invoice.Id"><td><strong>@invoice.InvoiceNumber</strong><span class="d-block">@invoice.StudentName (@invoice.StudentNumber)</span><small class="text-body-secondary">@invoice.AcademicYearName · @invoice.ClassName / @invoice.SectionName</small><a class="d-block small" href="@($"/finance/invoices/{invoice.Id}/pdf")">Invoice PDF</a>@if (invoice.Status == FeeInvoiceStatus.Cancelled) { <span class="badge text-bg-secondary ms-1">Cancelled</span> } else if (invoice.IsOverdue) { <span class="badge text-bg-danger ms-1">Overdue</span> }</td><td>@invoice.FeeName<small class="d-block text-body-secondary">@invoice.Category</small></td><td>@invoice.DueDate:dd MMM yyyy</td><td>@Money(invoice.TotalAmount)<small class="d-block text-body-secondary">Gross @Money(invoice.GrossAmount) · discount @Money(invoice.DiscountAmount)</small></td><td>@Money(invoice.AmountReceived)</td><td>@Money(invoice.AmountRefunded)</td><td><strong>@Money(invoice.Balance)</strong></td><td>
                         @if (invoice.Balance > 0 && invoice.Status == FeeInvoiceStatus.Issued)
                         {
                             <details><summary>Record cash / bank payment</summary><EditForm Model="GetPaymentForm(invoice.Id)" OnValidSubmit="() => RecordPaymentAsync(invoice.Id)" FormName="@($"payment-{invoice.Id}")">
@@ -172,7 +173,7 @@ else
                                 @foreach (var payment in invoice.Payments)
                                 {
                                     <li class="border-top py-2"><strong>@Money(payment.Amount)</strong> · @payment.Method · @payment.Status <small class="d-block">@payment.PaidAtUtc?.ToString("dd MMM yyyy HH:mm 'UTC'") @payment.Reference @payment.GatewayTransactionId</small>
-                                        @if (!string.IsNullOrWhiteSpace(payment.ReceiptNumber)) { <a href="@($"/finance/receipts/{payment.Id}")">Receipt @payment.ReceiptNumber</a> }
+                                        @if (!string.IsNullOrWhiteSpace(payment.ReceiptNumber)) { <a href="@($"/finance/receipts/{payment.Id}")">Receipt @payment.ReceiptNumber</a><a class="d-block small" href="@($"/finance/receipts/{payment.Id}/pdf")">Receipt PDF</a> }
                                         @if (payment.Status is PaymentStatus.Succeeded or PaymentStatus.ReviewRequired)
                                         {
                                             <EditForm Model="GetRefundForm(payment.Id)" OnValidSubmit="() => RequestRefundAsync(payment.Id)" FormName="@($"refund-{payment.Id}")">

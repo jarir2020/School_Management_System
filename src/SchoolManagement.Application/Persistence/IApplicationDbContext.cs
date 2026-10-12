@@ -44,6 +44,13 @@ public interface IApplicationDbContext : IAsyncDisposable
     DbSet<PaymentAllocation> PaymentAllocations { get; }
     DbSet<PaymentReceipt> PaymentReceipts { get; }
     DbSet<RefundRequest> RefundRequests { get; }
+    DbSet<Announcement> Announcements { get; }
+    DbSet<Conversation> Conversations { get; }
+    DbSet<SchoolMessage> Messages { get; }
+    DbSet<MessageAttachment> MessageAttachments { get; }
+    DbSet<AuditLog> AuditLogs { get; }
+    DbSet<EmailOutboxMessage> EmailOutboxMessages { get; }
+    DbSet<BackgroundJobLog> BackgroundJobLogs { get; }
 
     Task<IDbContextTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default);
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

@@ -1,0 +1,235 @@
+@page "/messages"
+@attribute [Authorize(Roles = SchoolRoles.ParentStudent + "," + SchoolRoles.Teacher)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using SchoolManagement.Application.Administration
+@inject IPhaseSixService PhaseSix
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Parent and teacher messages</PageTitle>
+<h1>Parent and teacher messages</h1>
+<p>Messages are limited to a linked parent and a teacher assigned to the student's active class. Attachments are private PDF, PNG, or JPEG files.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-info")" role="status">@_message</div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        @if (_isParent && _options is not null)
+        {
+            <section class="card mb-3"><div class="card-body">
+                <h2 class="h5">Start a conversation</h2>
+                @if (!_options.Any(item => item.Teachers.Count > 0))
+                {
+                    <p class="text-body-secondary mb-0">No assigned teachers are available for linked children.</p>
+                }
+                else
+                {
+                    <label class="form-label" for="new-conversation">Child and teacher</label>
+                    <InputSelect id="new-conversation" class="form-select mb-2" @bind-Value="_contact">
+                        <option value="">Choose a teacher</option>
+                        @foreach (var child in _options)
+                        {
+                            <optgroup label="@child.StudentName">
+                                @foreach (var teacher in child.Teachers)
+                                {
+                                    <option value="@($"{child.StudentId}|{teacher.UserId}")">@teacher.Name · @teacher.Subject · @teacher.ClassName / @teacher.SectionName</option>
+                                }
+                            </optgroup>
+                        }
+                    </InputSelect>
+                    <button class="btn btn-outline-primary" disabled="@string.IsNullOrWhiteSpace(_contact)" @onclick="StartAsync">Open conversation</button>
+                }
+            </div></section>
+        }
+
+        <section class="card"><div class="card-body">
+            <h2 class="h5">Conversations</h2>
+            @if (_conversations is null) { <p>Loading…</p> }
+            else if (_conversations.Count == 0) { <p class="text-body-secondary mb-0">No conversations yet.</p> }
+            else
+            {
+                <div class="list-group">
+                    @foreach (var item in _conversations)
+                    {
+                        <button type="button" class="list-group-item list-group-item-action @(_selectedConversationId == item.Id ? "active" : "")" @onclick="() => SelectConversationAsync(item.Id)">
+                            <strong>@item.StudentName</strong><span class="d-block">@item.OtherParticipantName</span><small>@item.LastMessageAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</small>
+                        </button>
+                    }
+                </div>
+            }
+        </div></section>
+    </div>
+
+    <div class="col-lg-8">
+        <section class="card"><div class="card-body">
+            <h2 class="h5">Message thread</h2>
+            @if (_selectedConversationId is null)
+            {
+                <p class="text-body-secondary mb-0">Choose a conversation to read and reply.</p>
+            }
+            else if (_messages is null)
+            {
+                <p>Loading messages…</p>
+            }
+            else
+            {
+                <div class="d-grid gap-3 mb-4">
+                    @foreach (var item in _messages)
+                    {
+                        <article class="border rounded p-3">
+                            <div class="d-flex justify-content-between gap-2"><strong>@item.SenderName</strong><small class="text-body-secondary">@item.SentAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</small></div>
+                            @if (!string.IsNullOrWhiteSpace(item.Content)) { <p class="mb-2 mt-2" style="white-space:pre-wrap">@item.Content</p> }
+                            @if (item.Attachments.Count > 0)
+                            {
+                                <ul class="mb-0">
+                                    @foreach (var attachment in item.Attachments)
+                                    {
+                                        <li><a href="@($"/parent/messages/attachments/{attachment.Id}")">@attachment.FileName</a> <small class="text-body-secondary">(@FormatBytes(attachment.SizeBytes))</small></li>
+                                    }
+                                </ul>
+                            }
+                        </article>
+                    }
+                </div>
+                <EditForm OnValidSubmit="SendAsync" FormName="send-message">
+                    <label class="form-label" for="message-content">Reply</label>
+                    <InputTextArea id="message-content" class="form-control mb-2" rows="4" maxlength="4000" @bind-Value="_content" />
+                    <label class="form-label" for="message-attachment">Private attachment (optional, 5 MB maximum)</label>
+                    <InputFile id="message-attachment" class="form-control mb-2" accept=".pdf,.png,.jpg,.jpeg" OnChange="AttachmentSelected" />
+                    @if (!string.IsNullOrWhiteSpace(_attachmentName)) { <small class="d-block mb-2">Selected: @_attachmentName</small> }
+                    <button class="btn btn-primary" type="submit" disabled="@_sending">Send message</button>
+                </EditForm>
+            }
+        </div></section>
+    </div>
+</div>
+
+@code {
+    private const long MaximumAttachmentBytes = 5 * 1024 * 1024;
+    private string _actorUserId = "";
+    private string _contact = "";
+    private bool _isParent;
+    private bool _sending;
+    private bool _isError;
+    private string? _message;
+    private string _content = "";
+    private string? _attachmentName;
+    private MessageAttachmentUpload? _attachment;
+    private int? _selectedConversationId;
+    private IReadOnlyList<MessagingStudentOption>? _options;
+    private IReadOnlyList<ConversationSummary>? _conversations;
+    private IReadOnlyList<MessageSummary>? _messages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        _isParent = state.User.IsInRole(SchoolRoles.ParentStudent);
+        try
+        {
+            if (_isParent) _options = await PhaseSix.GetParentMessagingOptionsAsync(_actorUserId);
+            await LoadConversationsAsync();
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException)
+        {
+            _message = exception.Message;
+            _isError = true;
+        }
+    }
+
+    private async Task LoadConversationsAsync()
+    {
+        _conversations = await PhaseSix.GetConversationsAsync(_actorUserId);
+        if (_selectedConversationId.HasValue && _conversations.Any(item => item.Id == _selectedConversationId.Value))
+            await LoadMessagesAsync(_selectedConversationId.Value);
+        else
+        {
+            _selectedConversationId = null;
+            _messages = null;
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        try
+        {
+            var parts = _contact.Split('|', StringSplitOptions.TrimEntries);
+            if (parts.Length != 2 || !int.TryParse(parts[0], out var studentId)) throw new ArgumentException("Choose a child and assigned teacher.");
+            _selectedConversationId = await PhaseSix.StartConversationAsync(_actorUserId, studentId, parts[1]);
+            await LoadConversationsAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _message = exception.Message;
+            _isError = true;
+        }
+    }
+
+    private async Task SelectConversationAsync(int id)
+    {
+        _selectedConversationId = id;
+        _content = "";
+        _attachment = null;
+        _attachmentName = null;
+        await LoadMessagesAsync(id);
+    }
+
+    private async Task LoadMessagesAsync(int id)
+    {
+        try { _messages = await PhaseSix.GetMessagesAsync(_actorUserId, id); }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or InvalidOperationException)
+        {
+            _messages = [];
+            _message = exception.Message;
+            _isError = true;
+        }
+    }
+
+    private async Task AttachmentSelected(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            var file = args.File;
+            await using var stream = file.OpenReadStream(MaximumAttachmentBytes);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            _attachment = new MessageAttachmentUpload(file.Name, file.ContentType, memory.ToArray());
+            _attachmentName = file.Name;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException)
+        {
+            _attachment = null;
+            _attachmentName = null;
+            _message = "The selected attachment could not be read. Choose a file no larger than 5 MB.";
+            _isError = true;
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        if (_selectedConversationId is null) return;
+        _sending = true;
+        try
+        {
+            await PhaseSix.SendMessageAsync(_actorUserId, _selectedConversationId.Value, _content, _attachment);
+            _content = "";
+            _attachment = null;
+            _attachmentName = null;
+            _message = "Message sent.";
+            _isError = false;
+            await LoadConversationsAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or UnauthorizedAccessException or InvalidOperationException or IOException)
+        {
+            _message = exception.Message;
+            _isError = true;
+        }
+        finally { _sending = false; }
+    }
+
+    private static string FormatBytes(long bytes) => bytes < 1024 ? $"{bytes} B" : $"{bytes / 1024d:N0} KB";
+}

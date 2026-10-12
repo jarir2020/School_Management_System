@@ -359,6 +359,15 @@ public sealed class AdmissionService(
                 Remarks = remarks,
                 ReviewedAtUtc = DateTimeOffset.UtcNow
             });
+            db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = reviewerId,
+                Action = input.Decision == AdmissionDecision.Approved ? "AdmissionApproved" : "AdmissionRejected",
+                EntityType = "AdmissionApplication",
+                EntityId = application.Id.ToString(),
+                Details = input.Decision == AdmissionDecision.Approved ? "Application approved and enrollment created." : "Application rejected after review.",
+                OccurredAtUtc = DateTimeOffset.UtcNow
+            });
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return new AdmissionDecisionResult(application.ApplicationNumber, studentNumber);
@@ -370,7 +379,7 @@ public sealed class AdmissionService(
         }
     }
 
-    public async Task<PrivateDocumentDownload?> GetDocumentAsync(int documentId, CancellationToken cancellationToken = default)
+    public async Task<PrivateDocumentDownload?> GetDocumentAsync(string actorUserId, int documentId, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var document = await db.ApplicationDocuments.AsNoTracking()
@@ -383,6 +392,24 @@ public sealed class AdmissionService(
         }
 
         var stream = await documentStore.OpenReadAsync(document.StorageKey, cancellationToken);
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "AdmissionDocumentDownloaded",
+            EntityType = "ApplicationDocument",
+            EntityId = documentId.ToString(),
+            Details = "Downloaded an authorized private admission document.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
         return new PrivateDocumentDownload(stream, document.OriginalFileName, document.ContentType);
     }
 

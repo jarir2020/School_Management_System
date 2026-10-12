@@ -131,7 +131,8 @@ public sealed class StudentDirectoryService(IApplicationDbContextFactory context
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new KeyNotFoundException("The selected student no longer exists.");
 
-        if (student.Status != input.Status
+        var statusChanged = student.Status != input.Status;
+        if (statusChanged
             && (student.Status != StudentStatus.Active || input.Status != StudentStatus.Withdrawn))
         {
             throw new InvalidOperationException("Phase 2 supports withdrawal from an active student record. Transfers and graduation come in later phases.");
@@ -161,7 +162,7 @@ public sealed class StudentDirectoryService(IApplicationDbContextFactory context
         guardian.Email = email;
         guardian.Address = guardianAddress;
 
-        if (student.Status != input.Status)
+        if (statusChanged)
         {
             var previousStatus = student.Status;
             student.Status = input.Status;
@@ -181,11 +182,21 @@ public sealed class StudentDirectoryService(IApplicationDbContextFactory context
             });
         }
 
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = changedBy,
+            Action = "StudentProfileUpdated",
+            EntityType = "Student",
+            EntityId = student.Id.ToString(),
+            Details = statusChanged ? $"Profile updated; status changed to {input.Status}." : "Student and guardian profile updated.",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
         await db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<StudentExportFile> ExportCsvAsync(
         StudentSearchFilter filter,
+        string actorUserId,
         CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -213,6 +224,16 @@ public sealed class StudentDirectoryService(IApplicationDbContextFactory context
                 .Append(',').Append(Csv(row.GuardianPhone)).AppendLine();
         }
 
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            Action = "StudentCsvExport",
+            EntityType = "Export",
+            EntityId = "",
+            Details = $"Exported {students.Count} student record(s).",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(cancellationToken);
         return new StudentExportFile(
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: true).GetBytes(csv.ToString()),
             "students.csv",
