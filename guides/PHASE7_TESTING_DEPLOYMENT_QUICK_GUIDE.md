@@ -9,7 +9,7 @@ This guide shows the local test commands and a Linux Docker Compose deployment p
 - `.github/workflows/ci.yml` restores the solution, reports vulnerable direct/transitive NuGet packages, builds and tests, applies every EF migration to a disposable MySQL 8.4 service, and starts the app in Production to check `/health/live` and `/health/ready`.
 - `/health/live` confirms the web process can answer. `/health/ready` returns success only when the configured database can be reached. Neither endpoint returns database error details.
 
-The SQLite workflow tests exercise application services and relational transactions. CI checks MySQL migrations and startup, but the browser workflows still need a manual walkthrough. The Phase 6 migration has not been applied to the developer's local database.
+The SQLite workflow tests exercise application services and relational transactions. CI checks MySQL migrations and startup, but the browser workflows still need a manual walkthrough. The full migration chain has since been applied to the local `school_management` database; six migration records and 49 tables were verified.
 
 Run local verification from the repository root:
 
@@ -133,4 +133,4 @@ Use synthetic records and a non-production database. Record pass/fail and any de
 
 ## 7. Current completion boundary
 
-The repository includes CI, deployment files, migration and backup helpers, and automated service-level tests. The 10 local unit and workflow tests passed after restoring packages, and the NuGet audit reported no vulnerable packages. A disposable MySQL 8.4 database accepted the full migration chain, and the Production smoke check returned `ready` and `live`; the hosted GitHub Actions workflow has not yet run. The local Phase 6 migration is pending because the supplied login was rejected. Browser walkthroughs, backup restoration, and a live Linux/cloud deployment must be verified in their target environments before claiming production readiness.
+The repository includes CI, deployment files, migration and backup helpers, and automated service-level tests. The 10 local unit and workflow tests passed after restoring packages, and the NuGet audit reported no vulnerable packages. A disposable MySQL 8.4 database accepted the full migration chain, and the Production smoke check returned `ready` and `live`. The hosted GitHub Actions run has not been verified after push. All six migrations are applied to the local `school_management` database. Browser walkthroughs, backup restoration, and a live Linux/cloud deployment must be verified in their target environments before claiming production readiness.

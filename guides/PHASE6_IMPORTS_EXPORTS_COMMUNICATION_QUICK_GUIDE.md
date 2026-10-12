@@ -54,7 +54,7 @@ Do not commit SMTP credentials or real student and guardian data. The **Audit an
 
 Application audit events record sensitive admission decisions, student profile changes, mark edits and publication, payment and refund actions, data imports and exports, private downloads, announcements, and messages. The audit screen is read-only and Super Admin only. Background job outcomes are recorded separately.
 
-The Phase6ImportsExportsCommunication migration adds announcements, conversations, messages, private message attachment metadata, audit logs, email outbox messages, and background job logs. Development startup applies migrations automatically; production deployments must apply migrations explicitly after a database backup. This checkout's Phase 6 migration is generated but remains unapplied because MySQL was unavailable in this environment.
+The Phase6ImportsExportsCommunication migration adds announcements, conversations, messages, private message attachment metadata, audit logs, email outbox messages, and background job logs. Development startup applies migrations automatically; production deployments must apply migrations explicitly after a database backup. The local `school_management` database has since been created and all six migrations applied.
 
 ## 7. PDF licensing and validation
 
