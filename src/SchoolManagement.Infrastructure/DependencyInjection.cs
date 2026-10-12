@@ -7,6 +7,7 @@ using SchoolManagement.Application.Admissions;
 using SchoolManagement.Application.SchoolSetup;
 using SchoolManagement.Application.UserManagement;
 using SchoolManagement.Application.Attendance;
+using SchoolManagement.Application.Examinations;
 using SchoolManagement.Infrastructure.Identity;
 using SchoolManagement.Infrastructure.Files;
 using SchoolManagement.Infrastructure.Persistence;
@@ -62,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<IExaminationService, ExaminationService>();
         services.AddScoped<InitialDataSeeder>();
 
         var privateDocumentRoot = configuration["Storage:PrivateDocumentRoot"]

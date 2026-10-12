@@ -520,6 +520,137 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("Enrollments", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.ExamSubject", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ExaminationId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("FullMarks")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)");
+
+                    b.Property<decimal>("PassMarks")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)");
+
+                    b.Property<int>("SectionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("SubjectId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("SubmittedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SectionId");
+
+                    b.HasIndex("SubjectId");
+
+                    b.HasIndex("ExaminationId", "Status");
+
+                    b.HasIndex("ExaminationId", "SectionId", "SubjectId")
+                        .IsUnique();
+
+                    b.ToTable("ExamSubjects", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Examination", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AcademicYearId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("TermId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("TermId");
+
+                    b.HasIndex("AcademicYearId", "TermId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Examinations", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.GradeBand", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AcademicYearId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("GradePoint")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("decimal(4,2)");
+
+                    b.Property<bool>("IsPassing")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("LetterGrade")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("varchar(8)");
+
+                    b.Property<decimal>("MinimumPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("Remark")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicYearId", "MinimumPercentage")
+                        .IsUnique();
+
+                    b.ToTable("GradeBands", (string)null);
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.Guardian", b =>
                 {
                     b.Property<int>("Id")
@@ -584,6 +715,85 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("GuardianAccountLinks", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.ResultApproval", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("ExaminationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Remarks")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTimeOffset>("ReviewedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ReviewerUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewerUserId");
+
+                    b.HasIndex("ExaminationId", "ReviewedAtUtc");
+
+                    b.ToTable("ResultApprovals", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.ResultRevision", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("NewMarks")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)");
+
+                    b.Property<decimal>("PreviousMarks")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTimeOffset>("RevisedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RevisedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<int>("StudentMarkId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevisedByUserId");
+
+                    b.HasIndex("StudentMarkId", "RevisedAtUtc");
+
+                    b.ToTable("ResultRevisions", (string)null);
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.SchoolClass", b =>
@@ -749,6 +959,54 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("StudentGuardians", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.StudentMark", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("EnteredAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("EnteredByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<int>("ExamSubjectId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("MarksObtained")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnteredByUserId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("ExamSubjectId", "StudentId")
+                        .IsUnique();
+
+                    b.ToTable("StudentMarks", (string)null);
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.StudentStatusHistory", b =>
                 {
                     b.Property<int>("Id")
@@ -860,6 +1118,36 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("TeacherAssignments", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Term", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AcademicYearId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicYearId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Terms", (string)null);
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.UserProfile", b =>
@@ -1145,6 +1433,69 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.ExamSubject", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.Examination", "Examination")
+                        .WithMany("Subjects")
+                        .HasForeignKey("ExaminationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.Section", "Section")
+                        .WithMany()
+                        .HasForeignKey("SectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.Subject", "Subject")
+                        .WithMany()
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Examination");
+
+                    b.Navigation("Section");
+
+                    b.Navigation("Subject");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Examination", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.Term", "Term")
+                        .WithMany()
+                        .HasForeignKey("TermId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicYear");
+
+                    b.Navigation("Term");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.GradeBand", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicYear");
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.GuardianAccountLink", b =>
                 {
                     b.HasOne("SchoolManagement.Core.Entities.Guardian", "Guardian")
@@ -1166,6 +1517,40 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Guardian");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.ResultApproval", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.Examination", "Examination")
+                        .WithMany("Approvals")
+                        .HasForeignKey("ExaminationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Examination");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.ResultRevision", b =>
+                {
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RevisedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.StudentMark", "StudentMark")
+                        .WithMany("Revisions")
+                        .HasForeignKey("StudentMarkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("StudentMark");
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.Section", b =>
@@ -1205,6 +1590,37 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Guardian");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.StudentMark", b =>
+                {
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("EnteredByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.ExamSubject", "ExamSubject")
+                        .WithMany("Marks")
+                        .HasForeignKey("ExamSubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ExamSubject");
 
                     b.Navigation("Student");
                 });
@@ -1264,6 +1680,17 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("Subject");
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Term", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicYear");
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.UserProfile", b =>
                 {
                     b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
@@ -1287,6 +1714,18 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("Records");
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.ExamSubject", b =>
+                {
+                    b.Navigation("Marks");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Examination", b =>
+                {
+                    b.Navigation("Approvals");
+
+                    b.Navigation("Subjects");
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.Guardian", b =>
                 {
                     b.Navigation("Students");
@@ -1304,6 +1743,11 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("Guardians");
 
                     b.Navigation("StatusHistory");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.StudentMark", b =>
+                {
+                    b.Navigation("Revisions");
                 });
 #pragma warning restore 612, 618
         }

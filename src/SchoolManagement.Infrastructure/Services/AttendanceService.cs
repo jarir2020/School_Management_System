@@ -185,6 +185,14 @@ public sealed class AttendanceService(
             throw new InvalidOperationException("An assignment with attendance history cannot be removed.");
         }
 
+        if (await db.ExamSubjects.AnyAsync(item => item.SectionId == assignment.SectionId
+                && item.SubjectId == assignment.SubjectId
+                && item.Examination!.AcademicYearId == assignment.AcademicYearId,
+                cancellationToken))
+        {
+            throw new InvalidOperationException("An assignment configured for an examination cannot be removed.");
+        }
+
         db.TeacherAssignments.Remove(assignment);
         await db.SaveChangesAsync(cancellationToken);
     }

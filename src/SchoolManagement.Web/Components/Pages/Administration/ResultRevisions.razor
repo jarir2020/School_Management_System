@@ -1,0 +1,106 @@
+@page "/admin/results/revisions"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Examinations
+@using SchoolManagement.Core.Enums
+@inject IExaminationService Examinations
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Published result revisions</PageTitle>
+<h1>Published result revisions</h1>
+<p>Only a Super Admin can revise a published mark. Each change requires a reason and adds an immutable before/after history entry.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+<section class="card mb-4"><div class="card-body">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-8"><label class="form-label" for="revision-exam">Published examination</label><select id="revision-exam" class="form-select" @bind="_selectedExamId"><option value="0">Choose a published examination</option>@foreach (var exam in _exams.Where(item => item.Status == ExaminationStatus.Published)) { <option value="@exam.Id">@exam.AcademicYearName · @exam.TermName · @exam.Name</option> }</select></div>
+        <div class="col-auto"><button class="btn btn-primary" @onclick="LoadMarksAsync">Load marks</button></div>
+    </div>
+</div></section>
+
+@if (_marks is null)
+{
+    <p>Select an examination to review or revise marks.</p>
+}
+else if (_marks.Count == 0)
+{
+    <div class="alert alert-info">No published marks are available for this examination.</div>
+}
+else
+{
+    <div class="table-responsive"><table class="table table-striped align-middle">
+        <thead><tr><th>Student</th><th>Class / subject</th><th>Current mark</th><th>New mark</th><th>Reason</th><th></th></tr></thead>
+        <tbody>@foreach (var mark in _marks)
+        {
+            <tr><td>@mark.StudentName <small class="d-block text-body-secondary">@mark.StudentNumber</small></td><td>@mark.ClassName — @mark.SectionName <small class="d-block text-body-secondary">@mark.SubjectName</small></td><td>@mark.MarksObtained:0.## / @mark.FullMarks:0.##</td>
+                <td colspan="3"><EditForm Model="GetForm(mark.MarkId)" OnValidSubmit="() => ReviseAsync(mark.MarkId)" FormName="@($"revise-mark-{mark.MarkId}")">
+                    <div class="d-flex flex-wrap gap-2"><InputNumber class="form-control" style="max-width: 140px" step="0.01" min="0" max="@mark.FullMarks" @bind-Value="GetForm(mark.MarkId).NewMarks" /><InputText class="form-control" placeholder="Required reason" maxlength="500" @bind-Value="GetForm(mark.MarkId).Reason" /><button class="btn btn-outline-danger text-nowrap" type="submit">Save revision</button></div>
+                </EditForm>
+                @if (mark.History.Count > 0)
+                {
+                    <details class="mt-2"><summary>Revision history (@mark.History.Count)</summary><ul class="mb-0 mt-1">@foreach (var item in mark.History) { <li>@item.PreviousMarks:0.## → @item.NewMarks:0.## · @item.Reason · @item.RevisedByName · @item.RevisedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</li> }</ul></details>
+                }
+                </td>
+            </tr>
+        }</tbody>
+    </table></div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "examId")] public int ExamId { get; set; }
+    private string _actorUserId = "";
+    private List<ExaminationSummary> _exams = [];
+    private IReadOnlyList<PublishedMarkForRevision>? _marks;
+    private readonly Dictionary<int, RevisionForm> _forms = [];
+    private int _selectedExamId;
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        try
+        {
+            var setup = await Examinations.GetSetupOptionsAsync(_actorUserId);
+            _exams = setup.Examinations.ToList();
+            _selectedExamId = ExamId > 0 ? ExamId : _exams.FirstOrDefault(exam => exam.Status == ExaminationStatus.Published)?.Id ?? 0;
+            if (_selectedExamId > 0) await LoadMarksAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _isError = true; _message = exception.Message; }
+    }
+
+    private async Task LoadMarksAsync()
+    {
+        if (_selectedExamId <= 0) { _marks = null; return; }
+        try
+        {
+            _marks = await Examinations.GetPublishedMarksForRevisionAsync(_actorUserId, _selectedExamId);
+            foreach (var mark in _marks) _forms.TryAdd(mark.MarkId, new RevisionForm { NewMarks = mark.MarksObtained });
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _isError = true; _message = exception.Message; _marks = []; }
+    }
+
+    private RevisionForm GetForm(int markId) => _forms[markId];
+
+    private async Task ReviseAsync(int markId)
+    {
+        var form = GetForm(markId);
+        try
+        {
+            await Examinations.RevisePublishedMarkAsync(_actorUserId, markId, form.NewMarks, form.Reason);
+            form.Reason = "";
+            _isError = false;
+            _message = "Published mark revised and history saved.";
+            await LoadMarksAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _isError = true; _message = exception.Message; }
+    }
+
+    private sealed class RevisionForm { public decimal NewMarks { get; set; } public string Reason { get; set; } = ""; }
+}

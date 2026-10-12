@@ -1,0 +1,174 @@
+@page "/examinations/marks"
+@attribute [Authorize(Roles = SchoolRoles.Teacher)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Examinations
+@inject IExaminationService Examinations
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Enter examination marks</PageTitle>
+<h1>Examination marks</h1>
+<p>Only examinations open for marks entry and assigned to your teaching account are listed. Save a draft before submitting each complete subject register.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+@if (_workItems is null)
+{
+    <p>Loading assigned examinations…</p>
+}
+else if (_register is null)
+{
+    @if (_submitted)
+    {
+        <div class="alert alert-success">This subject's marks were submitted. It is now waiting for the remaining subjects and result review.</div>
+    }
+    @if (_workItems.Count == 0)
+    {
+        <div class="alert alert-info">There are no examination subjects open for your account. Ask the school administrator to configure and open an exam.</div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var work in _workItems)
+            {
+                <div class="col-md-6 col-xl-4"><article class="card h-100"><div class="card-body">
+                    <h2 class="h5">@work.ExaminationName</h2>
+                    <p class="mb-1">@work.AcademicYearName · @work.TermName</p>
+                    <p><strong>@work.ClassName — @work.SectionName</strong><br />@work.SubjectName <span class="text-body-secondary">(@work.SubjectCode)</span></p>
+                    <p class="text-body-secondary">Full marks @work.FullMarks:0.## · Pass marks @work.PassMarks:0.##</p>
+                    <a class="btn btn-primary" href="@($"/examinations/marks?examSubjectId={work.ExamSubjectId}")">Open marks register</a>
+                </div></article></div>
+            }
+        </div>
+    }
+}
+else
+{
+    <p><a href="/examinations/marks">← All assigned examinations</a></p>
+    <h2 class="h4">@_register.WorkItem.ExaminationName · @_register.WorkItem.ClassName — @_register.WorkItem.SectionName</h2>
+    <p class="lead">@_register.WorkItem.SubjectName · @_register.WorkItem.AcademicYearName / @_register.WorkItem.TermName</p>
+    <div class="alert alert-info">Enter marks from 0 to @_register.WorkItem.FullMarks:0.##. Leave a mark blank if it is not ready; every active student needs a saved mark before submission.</div>
+
+    @if (_register.Students.Count == 0)
+    {
+        <div class="alert alert-warning">No active students are enrolled in this section for this academic year.</div>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="SaveDraftAsync" FormName="save-student-marks">
+            <div class="table-responsive"><table class="table table-striped align-middle">
+                <thead><tr><th>Student number</th><th>Student</th><th>Marks</th><th>Out of</th></tr></thead>
+                <tbody>@foreach (var entry in _form.Entries)
+                {
+                    <tr><td>@entry.StudentNumber</td><td>@entry.StudentName</td><td><InputNumber class="form-control" step="0.01" min="0" max="@_register.WorkItem.FullMarks" @bind-Value="entry.MarksObtained" /></td><td>@_register.WorkItem.FullMarks:0.##</td></tr>
+                }</tbody>
+            </table></div>
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-outline-primary" type="submit" disabled="@_isSaving">Save draft marks</button>
+                <button class="btn btn-primary" type="button" disabled="@_isSaving" @onclick="SubmitMarksAsync">Submit complete subject</button>
+            </div>
+        </EditForm>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "examSubjectId")] public int ExamSubjectId { get; set; }
+
+    private string _teacherUserId = "";
+    private IReadOnlyList<ExamWorkItem>? _workItems;
+    private ExamMarkRegister? _register;
+    private readonly MarksForm _form = new();
+    private string? _message;
+    private bool _isError;
+    private bool _isSaving;
+    private bool _submitted;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _teacherUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _workItems = await Examinations.GetTeacherWorkAsync(_teacherUserId);
+            if (ExamSubjectId <= 0)
+            {
+                _register = null;
+                return;
+            }
+
+            _register = await Examinations.GetMarkRegisterAsync(_teacherUserId, ExamSubjectId);
+            _form.Entries = _register.Students.Select(student => new MarkFormEntry
+            {
+                StudentId = student.StudentId,
+                StudentNumber = student.StudentNumber,
+                StudentName = student.StudentName,
+                MarksObtained = student.MarksObtained
+            }).ToList();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _register = null;
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (_register is null) return;
+        await RunAsync(async () =>
+        {
+            _isSaving = true;
+            await Examinations.SaveMarksAsync(_teacherUserId, ExamSubjectId, _form.Entries
+                .Select(entry => new MarkInput(entry.StudentId, entry.MarksObtained)).ToArray());
+            _isError = false;
+            _message = "Draft marks saved. You can return and continue before submitting.";
+            await LoadAsync();
+            _isSaving = false;
+        });
+        _isSaving = false;
+    }
+
+    private async Task SubmitMarksAsync()
+    {
+        if (_register is null) return;
+        await RunAsync(async () =>
+        {
+            _isSaving = true;
+            await Examinations.SaveMarksAsync(_teacherUserId, ExamSubjectId, _form.Entries
+                .Select(entry => new MarkInput(entry.StudentId, entry.MarksObtained)).ToArray());
+            await Examinations.SubmitSubjectMarksAsync(_teacherUserId, ExamSubjectId);
+            _submitted = true;
+            _isError = false;
+            _message = "Subject marks submitted for examination review.";
+            ExamSubjectId = 0;
+            _register = null;
+            _workItems = await Examinations.GetTeacherWorkAsync(_teacherUserId);
+            _isSaving = false;
+        });
+        _isSaving = false;
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _isError = true; _message = exception.Message; }
+    }
+
+    private sealed class MarksForm { public List<MarkFormEntry> Entries { get; set; } = []; }
+    private sealed class MarkFormEntry
+    {
+        public int StudentId { get; set; }
+        public string StudentNumber { get; set; } = "";
+        public string StudentName { get; set; } = "";
+        public decimal? MarksObtained { get; set; }
+    }
+}

@@ -1,0 +1,220 @@
+@page "/admin/examinations"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Examinations
+@using SchoolManagement.Core.Enums
+@inject IExaminationService ExaminationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Examinations</PageTitle>
+<h1>Examinations and grading</h1>
+<p>Set up terms, examinations, section subjects, and academic-year grade bands. Open a configured exam when teachers are ready to enter marks.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+@if (_options is null)
+{
+    <p>Loading examination setup…</p>
+}
+else
+{
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">Add academic term</h2>
+                <EditForm Model="_termForm" OnValidSubmit="CreateTermAsync" FormName="create-academic-term">
+                    <DataAnnotationsValidator />
+                    <div class="mb-3"><label class="form-label" for="term-year">Academic year</label><InputSelect id="term-year" class="form-select" @bind-Value="_termForm.AcademicYearId"><option value="0">Select a year</option>@foreach (var year in _options.AcademicYears) { <option value="@year.Id">@year.Name</option> }</InputSelect></div>
+                    <div class="mb-3"><label class="form-label" for="term-name">Term name</label><InputText id="term-name" class="form-control" @bind-Value="_termForm.Name" /><ValidationMessage For="() => _termForm.Name" class="text-danger" /></div>
+                    <div class="row g-3"><div class="col-sm-6"><label class="form-label" for="term-start">Start date</label><InputDate id="term-start" class="form-control" @bind-Value="_termForm.StartDate" /></div><div class="col-sm-6"><label class="form-label" for="term-end">End date</label><InputDate id="term-end" class="form-control" @bind-Value="_termForm.EndDate" /></div></div>
+                    <button class="btn btn-primary mt-3" type="submit">Add term</button>
+                </EditForm>
+                <hr />
+                <h3 class="h6">Terms</h3>
+                @if (_options.Terms.Count == 0) { <p class="text-body-secondary mb-0">No terms configured.</p> }
+                else { <ul class="mb-0">@foreach (var term in _options.Terms) { <li>@term.AcademicYearName · @term.Name <span class="text-body-secondary">(@term.StartDate:dd MMM yyyy – @term.EndDate:dd MMM yyyy)</span></li> }</ul> }
+            </div></section>
+        </div>
+        <div class="col-lg-6">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">Add examination</h2>
+                <EditForm Model="_examForm" OnValidSubmit="CreateExaminationAsync" FormName="create-examination">
+                    <DataAnnotationsValidator />
+                    <div class="mb-3"><label class="form-label" for="exam-year">Academic year</label><InputSelect id="exam-year" class="form-select" @bind-Value="_examForm.AcademicYearId"><option value="0">Select a year</option>@foreach (var year in _options.AcademicYears) { <option value="@year.Id">@year.Name</option> }</InputSelect></div>
+                    <div class="mb-3"><label class="form-label" for="exam-term">Term</label><InputSelect id="exam-term" class="form-select" @bind-Value="_examForm.TermId"><option value="0">Select a term</option>@foreach (var term in _options.Terms.Where(item => item.AcademicYearId == _examForm.AcademicYearId)) { <option value="@term.Id">@term.Name</option> }</InputSelect></div>
+                    <div class="mb-3"><label class="form-label" for="exam-name">Examination name</label><InputText id="exam-name" class="form-control" @bind-Value="_examForm.Name" /><ValidationMessage For="() => _examForm.Name" class="text-danger" /></div>
+                    <button class="btn btn-primary" type="submit" disabled="@(_options.Terms.Count == 0)">Create draft examination</button>
+                </EditForm>
+                <p class="form-text">An exam starts in Draft. Configure at least one section and subject, then open marks entry.</p>
+            </div></section>
+        </div>
+        <div class="col-lg-7">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">Add examination subject</h2>
+                <EditForm Model="_examSubjectForm" OnValidSubmit="AddExamSubjectAsync" FormName="add-examination-subject">
+                    <DataAnnotationsValidator />
+                    <div class="mb-3"><label class="form-label" for="line-exam">Draft examination</label><InputSelect id="line-exam" class="form-select" @bind-Value="_examSubjectForm.ExaminationId"><option value="0">Select a draft exam</option>@foreach (var exam in _options.Examinations.Where(item => item.Status == ExaminationStatus.Draft)) { <option value="@exam.Id">@exam.AcademicYearName · @exam.TermName · @exam.Name</option> }</InputSelect></div>
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label" for="line-section">Class and section</label><InputSelect id="line-section" class="form-select" @bind-Value="_examSubjectForm.SectionId"><option value="0">Select a section</option>@foreach (var schoolSection in _options.Sections) { <option value="@schoolSection.Id">@schoolSection.ClassName — @schoolSection.Name</option> }</InputSelect></div>
+                        <div class="col-md-6"><label class="form-label" for="line-subject">Subject</label><InputSelect id="line-subject" class="form-select" @bind-Value="_examSubjectForm.SubjectId"><option value="0">Select a subject</option>@foreach (var subject in _options.Subjects) { <option value="@subject.Id">@subject.Name (@subject.Code)</option> }</InputSelect></div>
+                        <div class="col-sm-6"><label class="form-label" for="line-full">Full marks</label><InputNumber id="line-full" class="form-control" @bind-Value="_examSubjectForm.FullMarks" /></div>
+                        <div class="col-sm-6"><label class="form-label" for="line-pass">Pass marks</label><InputNumber id="line-pass" class="form-control" @bind-Value="_examSubjectForm.PassMarks" /></div>
+                    </div>
+                    <button class="btn btn-primary mt-3" type="submit">Add section subject</button>
+                </EditForm>
+                <p class="form-text">A teacher must already be assigned to the chosen section, subject, and academic year.</p>
+            </div></section>
+        </div>
+        <div class="col-lg-5">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">Academic-year grade band</h2>
+                <EditForm Model="_gradeForm" OnValidSubmit="CreateGradeBandAsync" FormName="create-grade-band">
+                    <DataAnnotationsValidator />
+                    <div class="mb-3"><label class="form-label" for="grade-year">Academic year</label><InputSelect id="grade-year" class="form-select" @bind-Value="_gradeForm.AcademicYearId"><option value="0">Select a year</option>@foreach (var year in _options.AcademicYears) { <option value="@year.Id">@year.Name</option> }</InputSelect></div>
+                    <div class="row g-3">
+                        <div class="col-sm-6"><label class="form-label" for="grade-min">Minimum percent</label><InputNumber id="grade-min" class="form-control" step="0.01" @bind-Value="_gradeForm.MinimumPercentage" /></div>
+                        <div class="col-sm-6"><label class="form-label" for="grade-letter">Letter grade</label><InputText id="grade-letter" class="form-control" @bind-Value="_gradeForm.LetterGrade" /></div>
+                        <div class="col-sm-6"><label class="form-label" for="grade-point">Grade point</label><InputNumber id="grade-point" class="form-control" step="0.01" @bind-Value="_gradeForm.GradePoint" /></div>
+                        <div class="col-sm-6"><label class="form-label" for="grade-remark">Remark</label><InputText id="grade-remark" class="form-control" @bind-Value="_gradeForm.Remark" /></div>
+                        <div class="col-12"><InputCheckbox id="grade-passing" class="form-check-input me-2" @bind-Value="_gradeForm.IsPassing" /><label class="form-check-label" for="grade-passing">Passing grade band</label></div>
+                    </div>
+                    <button class="btn btn-primary mt-3" type="submit">Add grade band</button>
+                </EditForm>
+                <p class="form-text">Add a 0% threshold for each year before opening an examination. The highest matching threshold is used.</p>
+            </div></section>
+        </div>
+    </div>
+
+    <section class="card mb-4"><div class="card-body">
+        <h2 class="h5">Grade scale</h2>
+        @if (_options.GradeBands.Count == 0) { <p class="text-body-secondary mb-0">No grade bands configured.</p> }
+        else { <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Year</th><th>At least</th><th>Grade</th><th>Points</th><th>Pass</th><th>Remark</th></tr></thead><tbody>@foreach (var band in _options.GradeBands) { <tr><td>@band.AcademicYearName</td><td>@band.MinimumPercentage.ToString("0.##")%</td><td>@band.LetterGrade</td><td>@band.GradePoint.ToString("0.##")</td><td>@(band.IsPassing ? "Yes" : "No")</td><td>@band.Remark</td></tr> }</tbody></table></div> }
+    </div></section>
+
+    <section class="card"><div class="card-body">
+        <h2 class="h5">Examinations</h2>
+        @if (_options.Examinations.Count == 0) { <p class="text-body-secondary mb-0">No examinations created.</p> }
+        else
+        {
+            <div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Examination</th><th>Status</th><th>Configured subjects</th><th>Workflow</th></tr></thead><tbody>
+                @foreach (var exam in _options.Examinations)
+                {
+                    <tr><td>@exam.AcademicYearName · @exam.TermName · @exam.Name</td><td><span class="badge text-bg-secondary">@exam.Status</span></td>
+                        <td>@if (exam.Subjects.Count == 0) { <span class="text-body-secondary">None</span> } else { <ul class="mb-0">@foreach (var item in exam.Subjects) { <li>@item.ClassName — @item.SectionName · @item.SubjectName <span class="text-body-secondary">(@item.Status, @item.FullMarks:0.## / @item.PassMarks:0.## pass)</span></li> }</ul> }</td>
+                        <td class="text-nowrap">
+                            @if (exam.Status == ExaminationStatus.Draft && exam.SubjectCount > 0) { <button class="btn btn-sm btn-primary" @onclick="() => OpenExamAsync(exam.Id)">Open marks entry</button> }
+                            @if (exam.Status is ExaminationStatus.Submitted or ExaminationStatus.Approved) { <a class="btn btn-sm btn-outline-primary" href="/examinations/review">Review / publish</a> }
+                            @if (exam.Status == ExaminationStatus.Published) { <a class="btn btn-sm btn-outline-secondary" href="@($"/admin/results/revisions?examId={exam.Id}")">Revise marks</a> }
+                        </td>
+                    </tr>
+                }
+            </tbody></table></div>
+        }
+    </div></section>
+}
+
+@code {
+    private ExaminationSetupOptions? _options;
+    private string _actorUserId = "";
+    private string? _message;
+    private bool _isError;
+    private readonly TermForm _termForm = new();
+    private readonly ExamForm _examForm = new();
+    private readonly ExamSubjectForm _examSubjectForm = new();
+    private readonly GradeBandForm _gradeForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task CreateTermAsync() => await RunAsync(async () =>
+    {
+        await ExaminationService.CreateTermAsync(_actorUserId, new TermInput(
+            _termForm.AcademicYearId, _termForm.Name, DateOnly.FromDateTime(_termForm.StartDate), DateOnly.FromDateTime(_termForm.EndDate)));
+        _termForm.Name = "";
+        SetMessage("Academic term added.");
+        await LoadAsync();
+    });
+
+    private async Task CreateExaminationAsync() => await RunAsync(async () =>
+    {
+        await ExaminationService.CreateExaminationAsync(_actorUserId, new ExaminationInput(_examForm.AcademicYearId, _examForm.TermId, _examForm.Name));
+        _examForm.Name = "";
+        SetMessage("Draft examination created.");
+        await LoadAsync();
+    });
+
+    private async Task AddExamSubjectAsync() => await RunAsync(async () =>
+    {
+        await ExaminationService.AddExamSubjectAsync(_actorUserId, new ExamSubjectInput(
+            _examSubjectForm.ExaminationId, _examSubjectForm.SectionId, _examSubjectForm.SubjectId, _examSubjectForm.FullMarks, _examSubjectForm.PassMarks));
+        SetMessage("Section subject added to the examination.");
+        await LoadAsync();
+    });
+
+    private async Task CreateGradeBandAsync() => await RunAsync(async () =>
+    {
+        await ExaminationService.CreateGradeBandAsync(_actorUserId, new GradeBandInput(
+            _gradeForm.AcademicYearId, _gradeForm.MinimumPercentage, _gradeForm.LetterGrade, _gradeForm.GradePoint, _gradeForm.IsPassing, _gradeForm.Remark));
+        _gradeForm.LetterGrade = "";
+        _gradeForm.Remark = "";
+        SetMessage("Grade band added.");
+        await LoadAsync();
+    });
+
+    private async Task OpenExamAsync(int examId) => await RunAsync(async () =>
+    {
+        await ExaminationService.OpenExaminationAsync(_actorUserId, examId);
+        SetMessage("Examination opened for teacher marks entry.");
+        await LoadAsync();
+    });
+
+    private async Task LoadAsync() => _options = await ExaminationService.GetSetupOptionsAsync(_actorUserId);
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _isError = true; _message = exception.Message; }
+    }
+
+    private void SetMessage(string message) { _isError = false; _message = message; }
+
+    private sealed class TermForm
+    {
+        [Range(1, int.MaxValue)] public int AcademicYearId { get; set; }
+        [Required, StringLength(60)] public string Name { get; set; } = "";
+        public DateTime StartDate { get; set; } = DateTime.Today;
+        public DateTime EndDate { get; set; } = DateTime.Today;
+    }
+    private sealed class ExamForm
+    {
+        [Range(1, int.MaxValue)] public int AcademicYearId { get; set; }
+        [Range(1, int.MaxValue)] public int TermId { get; set; }
+        [Required, StringLength(120)] public string Name { get; set; } = "";
+    }
+    private sealed class ExamSubjectForm
+    {
+        [Range(1, int.MaxValue)] public int ExaminationId { get; set; }
+        [Range(1, int.MaxValue)] public int SectionId { get; set; }
+        [Range(1, int.MaxValue)] public int SubjectId { get; set; }
+        [Range(typeof(decimal), "0.01", "10000")] public decimal FullMarks { get; set; } = 100;
+        [Range(typeof(decimal), "0", "10000")] public decimal PassMarks { get; set; } = 40;
+    }
+    private sealed class GradeBandForm
+    {
+        [Range(1, int.MaxValue)] public int AcademicYearId { get; set; }
+        [Range(typeof(decimal), "0", "100")] public decimal MinimumPercentage { get; set; }
+        [Required, StringLength(8)] public string LetterGrade { get; set; } = "";
+        [Range(typeof(decimal), "0", "10")] public decimal GradePoint { get; set; }
+        public bool IsPassing { get; set; }
+        [StringLength(120)] public string Remark { get; set; } = "";
+    }
+}

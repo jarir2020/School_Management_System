@@ -1,0 +1,129 @@
+@page "/examinations/review"
+@attribute [Authorize(Roles = SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Examinations
+@using SchoolManagement.Core.Enums
+@inject IExaminationService Examinations
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Review examination results</PageTitle>
+<h1>Review results</h1>
+<p>Review submitted examination results. Rejection reopens every subject register for correction; publication makes report cards visible to linked parent accounts.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+@if (_exams is null)
+{
+    <p>Loading examination submissions…</p>
+}
+else if (_exams.Count == 0)
+{
+    <div class="alert alert-info">No submitted or approved examinations are waiting for review or publication.</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var exam in _exams)
+        {
+            <div class="col-12"><article class="card"><div class="card-body">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                    <div><h2 class="h5 mb-1">@exam.ExaminationName</h2><p class="text-body-secondary mb-0">@exam.AcademicYearName · @exam.TermName · @exam.SubjectCount section subjects · @exam.MarkCount mark records</p></div>
+                    <span class="badge @(exam.Status == ExaminationStatus.Submitted ? "text-bg-warning" : "text-bg-success")">@exam.Status</span>
+                </div>
+                @if (exam.Approvals.Count > 0)
+                {
+                    <details class="mt-3"><summary>Approval history (@exam.Approvals.Count)</summary><ol class="mt-2">@foreach (var approval in exam.Approvals) { <li>@approval.Decision by @approval.ReviewerName · @approval.ReviewedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") @if (!string.IsNullOrWhiteSpace(approval.Remarks)) { <span> — @approval.Remarks</span> }</li> }</ol></details>
+                }
+                <details class="mt-3"><summary>Review marks (@exam.MarkCount)</summary>
+                    @foreach (var subject in exam.Subjects)
+                    {
+                        <h3 class="h6 mt-3">@subject.ClassName — @subject.SectionName · @subject.SubjectName <span class="text-body-secondary">(@subject.FullMarks:0.## full, @subject.PassMarks:0.## pass)</span></h3>
+                        <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Student number</th><th>Student</th><th>Marks</th></tr></thead><tbody>
+                            @foreach (var mark in subject.Marks)
+                            {
+                                <tr><td>@mark.StudentNumber</td><td>@mark.StudentName</td><td>@mark.MarksObtained:0.## / @subject.FullMarks:0.##</td></tr>
+                            }
+                        </tbody></table></div>
+                    }
+                </details>
+                @if (exam.Status == ExaminationStatus.Submitted)
+                {
+                    <div class="mt-3">
+                        <label class="form-label" for="@($"review-note-{exam.ExaminationId}")">Review note (required when rejecting)</label>
+                        <textarea id="@($"review-note-{exam.ExaminationId}")" class="form-control mb-2" rows="2" maxlength="1000" @bind="_remarks[exam.ExaminationId]"></textarea>
+                        <div class="d-flex gap-2"><button class="btn btn-success" @onclick="() => ReviewAsync(exam.ExaminationId, true)">Approve results</button><button class="btn btn-outline-danger" @onclick="() => ReviewAsync(exam.ExaminationId, false)">Reject and reopen</button></div>
+                    </div>
+                }
+                else if (exam.Status == ExaminationStatus.Approved)
+                {
+                    <button class="btn btn-primary mt-3" @onclick="() => PublishAsync(exam.ExaminationId)">Publish report cards</button>
+                }
+            </div></article></div>
+        }
+    </div>
+}
+
+@code {
+    private string _actorUserId = "";
+    private IReadOnlyList<ExamReviewSummary>? _exams;
+    private readonly Dictionary<int, string> _remarks = [];
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _exams = await Examinations.GetReviewQueueAsync(_actorUserId);
+            foreach (var exam in _exams) _remarks.TryAdd(exam.ExaminationId, "");
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+
+    private async Task ReviewAsync(int examinationId, bool approve)
+    {
+        try
+        {
+            await Examinations.ReviewExaminationAsync(_actorUserId, examinationId, approve, _remarks.GetValueOrDefault(examinationId));
+            _isError = false;
+            _message = approve ? "Examination approved. Publish it when ready to release report cards." : "Examination rejected and returned to marks entry.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+
+    private async Task PublishAsync(int examinationId)
+    {
+        try
+        {
+            await Examinations.PublishExaminationAsync(_actorUserId, examinationId);
+            _isError = false;
+            _message = "Report cards published to linked parent accounts.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+}

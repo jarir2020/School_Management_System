@@ -40,6 +40,12 @@
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="admin/teacher-assignments">Teachers and subjects</NavLink>
                         </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin/examinations">Examinations and grading</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin/results/revisions">Result revisions</NavLink>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
                 <AuthorizeView Roles="@(SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)">
@@ -63,6 +69,9 @@
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="attendance/corrections">Correction requests</NavLink>
                         </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="examinations/marks">Examination marks</NavLink>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
                 <AuthorizeView Roles="@(SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)">
@@ -73,12 +82,18 @@
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="attendance/corrections">Attendance corrections</NavLink>
                         </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="examinations/review">Result review</NavLink>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
                 <AuthorizeView Roles="@SchoolRoles.ParentStudent">
                     <Authorized Context="parentContext">
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="parent/attendance">Children's attendance</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="parent/results">Published report cards</NavLink>
                         </div>
                     </Authorized>
                 </AuthorizeView>

@@ -29,6 +29,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<AttendanceCorrectionRequest> AttendanceCorrectionRequests => Set<AttendanceCorrectionRequest>();
     public DbSet<GuardianAccountLink> GuardianAccountLinks => Set<GuardianAccountLink>();
+    public DbSet<Term> Terms => Set<Term>();
+    public DbSet<Examination> Examinations => Set<Examination>();
+    public DbSet<ExamSubject> ExamSubjects => Set<ExamSubject>();
+    public DbSet<StudentMark> StudentMarks => Set<StudentMark>();
+    public DbSet<ResultApproval> ResultApprovals => Set<ResultApproval>();
+    public DbSet<ResultRevision> ResultRevisions => Set<ResultRevision>();
+    public DbSet<GradeBand> GradeBands => Set<GradeBand>();
 
     public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
         IsolationLevel isolationLevel,
@@ -371,6 +378,144 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(link => link.LinkedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Term>(entity =>
+        {
+            entity.ToTable("Terms");
+            entity.HasKey(term => term.Id);
+            entity.Property(term => term.Name).HasMaxLength(60).IsRequired();
+            entity.Property(term => term.StartDate).HasColumnType("date");
+            entity.Property(term => term.EndDate).HasColumnType("date");
+            entity.HasIndex(term => new { term.AcademicYearId, term.Name }).IsUnique();
+            entity.HasOne(term => term.AcademicYear)
+                .WithMany()
+                .HasForeignKey(term => term.AcademicYearId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Examination>(entity =>
+        {
+            entity.ToTable("Examinations");
+            entity.HasKey(exam => exam.Id);
+            entity.Property(exam => exam.Name).HasMaxLength(120).IsRequired();
+            entity.Property(exam => exam.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(exam => exam.CreatedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(exam => new { exam.AcademicYearId, exam.TermId, exam.Name }).IsUnique();
+            entity.HasOne(exam => exam.AcademicYear)
+                .WithMany()
+                .HasForeignKey(exam => exam.AcademicYearId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(exam => exam.Term)
+                .WithMany()
+                .HasForeignKey(exam => exam.TermId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(exam => exam.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ExamSubject>(entity =>
+        {
+            entity.ToTable("ExamSubjects");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.FullMarks).HasPrecision(7, 2);
+            entity.Property(item => item.PassMarks).HasPrecision(7, 2);
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.HasIndex(item => new { item.ExaminationId, item.Status });
+            entity.HasIndex(item => new { item.ExaminationId, item.SectionId, item.SubjectId }).IsUnique();
+            entity.HasOne(item => item.Examination)
+                .WithMany(exam => exam.Subjects)
+                .HasForeignKey(item => item.ExaminationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Section)
+                .WithMany()
+                .HasForeignKey(item => item.SectionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Subject)
+                .WithMany()
+                .HasForeignKey(item => item.SubjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StudentMark>(entity =>
+        {
+            entity.ToTable("StudentMarks");
+            entity.HasKey(mark => mark.Id);
+            entity.Property(mark => mark.MarksObtained).HasPrecision(7, 2);
+            entity.Property(mark => mark.EnteredByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(mark => mark.UpdatedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(mark => new { mark.ExamSubjectId, mark.StudentId }).IsUnique();
+            entity.HasIndex(mark => mark.StudentId);
+            entity.HasOne(mark => mark.ExamSubject)
+                .WithMany(item => item.Marks)
+                .HasForeignKey(mark => mark.ExamSubjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(mark => mark.Student)
+                .WithMany()
+                .HasForeignKey(mark => mark.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(mark => mark.EnteredByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(mark => mark.UpdatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ResultApproval>(entity =>
+        {
+            entity.ToTable("ResultApprovals");
+            entity.HasKey(approval => approval.Id);
+            entity.Property(approval => approval.Decision).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(approval => approval.ReviewerUserId).HasMaxLength(450).IsRequired();
+            entity.Property(approval => approval.Remarks).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(approval => new { approval.ExaminationId, approval.ReviewedAtUtc });
+            entity.HasOne(approval => approval.Examination)
+                .WithMany(exam => exam.Approvals)
+                .HasForeignKey(approval => approval.ExaminationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(approval => approval.ReviewerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ResultRevision>(entity =>
+        {
+            entity.ToTable("ResultRevisions");
+            entity.HasKey(revision => revision.Id);
+            entity.Property(revision => revision.PreviousMarks).HasPrecision(7, 2);
+            entity.Property(revision => revision.NewMarks).HasPrecision(7, 2);
+            entity.Property(revision => revision.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(revision => revision.RevisedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(revision => new { revision.StudentMarkId, revision.RevisedAtUtc });
+            entity.HasOne(revision => revision.StudentMark)
+                .WithMany(mark => mark.Revisions)
+                .HasForeignKey(revision => revision.StudentMarkId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(revision => revision.RevisedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<GradeBand>(entity =>
+        {
+            entity.ToTable("GradeBands");
+            entity.HasKey(band => band.Id);
+            entity.Property(band => band.MinimumPercentage).HasPrecision(5, 2);
+            entity.Property(band => band.LetterGrade).HasMaxLength(8).IsRequired();
+            entity.Property(band => band.GradePoint).HasPrecision(4, 2);
+            entity.Property(band => band.Remark).HasMaxLength(120).IsRequired();
+            entity.HasIndex(band => new { band.AcademicYearId, band.MinimumPercentage }).IsUnique();
+            entity.HasOne(band => band.AcademicYear)
+                .WithMany()
+                .HasForeignKey(band => band.AcademicYearId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

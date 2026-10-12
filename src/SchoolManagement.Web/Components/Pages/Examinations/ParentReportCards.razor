@@ -1,0 +1,58 @@
+@page "/parent/results"
+@attribute [Authorize(Roles = SchoolRoles.ParentStudent)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Examinations
+@inject IExaminationService Examinations
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Published report cards</PageTitle>
+<h1>Published report cards</h1>
+<p>Only published results for children linked to your parent account are shown here.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert alert-danger" role="alert">@_message</div>
+}
+
+@if (_cards is null)
+{
+    <p>Loading published results…</p>
+}
+else if (_cards.Count == 0)
+{
+    <div class="alert alert-info">No published report cards are available for linked children.</div>
+}
+else
+{
+    <div class="d-grid gap-3">
+        @foreach (var card in _cards)
+        {
+            <details class="card"><summary class="card-body d-flex flex-wrap justify-content-between gap-3">
+                <span><strong>@card.StudentName</strong> <span class="text-body-secondary">(@card.StudentNumber)</span><span class="d-block">@card.ExaminationName · @card.TermName · @card.AcademicYearName</span></span>
+                <span class="text-end">@card.TotalMarks.ToString("0.##") / @card.FullMarks.ToString("0.##") · @card.OverallPercentage.ToString("0.##")%<span class="d-block">GPA @card.Gpa.ToString("0.00") · @(card.IsPassing ? "Pass" : "Review required")</span></span>
+            </summary>
+                <div class="px-3 pb-3"><div class="table-responsive"><table class="table table-sm table-striped mb-0">
+                    <thead><tr><th>Class / section</th><th>Subject</th><th>Marks</th><th>Percent</th><th>Grade</th><th>Points</th><th>Result</th></tr></thead>
+                    <tbody>@foreach (var subject in card.Subjects)
+                    {
+                        <tr><td>@subject.ClassName — @subject.SectionName</td><td>@subject.SubjectName</td><td>@subject.MarksObtained.ToString("0.##") / @subject.FullMarks.ToString("0.##")</td><td>@subject.Grade.Percentage.ToString("0.##")%</td><td>@subject.Grade.LetterGrade</td><td>@subject.Grade.GradePoint.ToString("0.00")</td><td>@(subject.Grade.IsPassing ? "Pass" : "Needs improvement")</td></tr>
+                    }</tbody>
+                </table></div></div>
+            </details>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<ReportCardSummary>? _cards;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var parentId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        try { _cards = await Examinations.GetMyReportCardsAsync(parentId); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _message = exception.Message; _cards = []; }
+    }
+}

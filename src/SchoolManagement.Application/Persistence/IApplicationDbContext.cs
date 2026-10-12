@@ -29,6 +29,13 @@ public interface IApplicationDbContext : IAsyncDisposable
     DbSet<AttendanceRecord> AttendanceRecords { get; }
     DbSet<AttendanceCorrectionRequest> AttendanceCorrectionRequests { get; }
     DbSet<GuardianAccountLink> GuardianAccountLinks { get; }
+    DbSet<Term> Terms { get; }
+    DbSet<Examination> Examinations { get; }
+    DbSet<ExamSubject> ExamSubjects { get; }
+    DbSet<StudentMark> StudentMarks { get; }
+    DbSet<ResultApproval> ResultApprovals { get; }
+    DbSet<ResultRevision> ResultRevisions { get; }
+    DbSet<GradeBand> GradeBands { get; }
 
     Task<IDbContextTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default);
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
