@@ -23,6 +23,12 @@ public interface IApplicationDbContext : IAsyncDisposable
     DbSet<StudentGuardian> StudentGuardians { get; }
     DbSet<Enrollment> Enrollments { get; }
     DbSet<StudentStatusHistory> StudentStatusHistories { get; }
+    DbSet<Subject> Subjects { get; }
+    DbSet<TeacherAssignment> TeacherAssignments { get; }
+    DbSet<AttendanceSession> AttendanceSessions { get; }
+    DbSet<AttendanceRecord> AttendanceRecords { get; }
+    DbSet<AttendanceCorrectionRequest> AttendanceCorrectionRequests { get; }
+    DbSet<GuardianAccountLink> GuardianAccountLinks { get; }
 
     Task<IDbContextTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default);
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

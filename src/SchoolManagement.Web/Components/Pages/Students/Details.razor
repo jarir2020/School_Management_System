@@ -4,8 +4,13 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using SchoolManagement.Application.Admissions
+@using SchoolManagement.Application.Attendance
+@using SchoolManagement.Application.UserManagement
+@using SchoolManagement.Core.Authorization
 @using SchoolManagement.Core.Enums
 @inject IStudentDirectoryService Students
+@inject IAttendanceService Attendance
+@inject IUserManagementService UserManagement
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Student record</PageTitle>
@@ -155,6 +160,56 @@ else
             </section>
         </div>
     </div>
+
+    @if (_isSuperAdmin)
+    {
+        <section class="card mt-4">
+            <div class="card-body">
+                <h2 class="h5">Parent portal access</h2>
+                <p class="text-body-secondary">Link a Parent/Student account to a guardian record. The linked account can see attendance only for children connected to that guardian.</p>
+                @if (_student.Guardians.Count == 0)
+                {
+                    <p class="mb-0">This student has no guardian records to link.</p>
+                }
+                else
+                {
+                    @foreach (var guardian in _student.Guardians)
+                    {
+                        <div class="border rounded p-3 mb-3">
+                            <h3 class="h6">@guardian.FullName <span class="text-body-secondary">(@guardian.Relationship, @guardian.Phone)</span></h3>
+                            @foreach (var link in _guardianLinks.Where(link => link.GuardianId == guardian.GuardianId))
+                            {
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                    <span>@link.UserName <span class="text-body-secondary">@link.Email</span></span>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => UnlinkParentAsync(guardian.GuardianId, link.UserId)">Remove access</button>
+                                </div>
+                            }
+                            @if (_parentAccounts.Count == 0)
+                            {
+                                <p class="small text-body-secondary mb-0">Create a user with the Parent/Student role before linking a portal account.</p>
+                            }
+                            else
+                            {
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-8">
+                                        <label class="form-label" for="@($"parent-account-{guardian.GuardianId}")">Parent account</label>
+                                        <select class="form-select" id="@($"parent-account-{guardian.GuardianId}")" @bind="_parentSelections[guardian.GuardianId]">
+                                            <option value="">Select a Parent/Student account</option>
+                                            @foreach (var parent in _parentAccounts)
+                                            {
+                                                <option value="@parent.Id">@parent.FullName — @parent.Email</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-auto"><button class="btn btn-outline-primary" @onclick="() => LinkParentAsync(guardian.GuardianId)">Link account</button></div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+    }
 }
 
 @code {
@@ -165,11 +220,17 @@ else
     private string? _message;
     private bool _isError;
     private bool _isSaving;
+    private bool _isSuperAdmin;
+    private List<GuardianLinkSummary> _guardianLinks = [];
+    private List<ManagedSchoolUser> _parentAccounts = [];
+    private readonly Dictionary<int, string> _parentSelections = [];
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _isSuperAdmin = state.User.IsInRole(SchoolRoles.SuperAdmin);
         _student = await Students.GetAsync(StudentId);
         if (_student is null)
         {
@@ -188,6 +249,50 @@ else
         _form.GuardianAddress = guardian?.Address ?? "";
         _form.Status = _student.Status;
         _form.StatusReason = "";
+        if (_isSuperAdmin)
+        {
+            _guardianLinks = (await Attendance.GetGuardianLinksAsync(state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "", StudentId)).ToList();
+            _parentAccounts = (await UserManagement.GetUsersAsync())
+                .Where(user => !user.IsLockedOut && user.Roles.Contains(SchoolRoles.ParentStudent, StringComparer.Ordinal))
+                .ToList();
+            foreach (var studentGuardian in _student.Guardians) _parentSelections.TryAdd(studentGuardian.GuardianId, "");
+        }
+    }
+
+    private async Task LinkParentAsync(int guardianId)
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var actorId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        try
+        {
+            await Attendance.LinkGuardianAccountAsync(actorId, guardianId, _parentSelections.GetValueOrDefault(guardianId, ""));
+            _isError = false;
+            _message = "Parent account linked. The parent portal can now show this child's attendance.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+
+    private async Task UnlinkParentAsync(int guardianId, string parentUserId)
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var actorId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        try
+        {
+            await Attendance.UnlinkGuardianAccountAsync(actorId, guardianId, parentUserId);
+            _isError = false;
+            _message = "Parent account access removed.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
     }
 
     private async Task SaveAsync()

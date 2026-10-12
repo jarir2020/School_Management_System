@@ -6,7 +6,7 @@ Build a realistic school administration and fee management application while lea
 
 ## Current state
 
-Phase 1's initial migration is applied to the local MySQL database. Phase 2 source adds an anonymous admission form, private PDF/PNG/JPEG uploads, role-protected review, approval/rejection history, capacity-checked student enrollment, guardian records, status history, a paginated student directory, profile updates, and CSV export. The solution builds and the admissions route serves. The full browser submission/review workflow still needs a manual walkthrough. Later roadmap workflows remain planned.
+Phases 1–3 are implemented in source and their migrations are applied to the configured local MySQL database. Phase 2 adds an anonymous admission form, private PDF/PNG/JPEG uploads, role-protected review, approval/rejection history, capacity-checked student enrollment, guardian records, status history, a paginated student directory, profile updates, and CSV export. Phase 3 adds subject and teacher assignments, teacher-scoped attendance entry, correction requests and approval history, daily/monthly reports, and guardian-linked parent attendance. The solution builds with no warnings or errors. The full Phase 2 and Phase 3 browser workflows still need manual walkthroughs. Later roadmap workflows remain planned.
 
 ## Architecture
 
@@ -24,9 +24,9 @@ Super Admin; Admission Officer; Teacher; Accountant; Parent/Student; Principal. 
 
 ## Planned modules
 
-1. Implemented: school profile, academic years, classes, and sections. Terms, subjects, assignments, grading scales, and calendar remain planned.
+1. Implemented: school profile, academic years, classes, and sections. Terms, grading scales, and calendar remain planned.
 2. Implemented in source: admission applications, private documents, review and approval, students, guardians, and yearly enrollment history. The full manual admission workflow walkthrough is pending.
-3. Teacher assignments, attendance sessions and records, correction requests, reports, and parent notifications.
+3. Implemented: subjects and teacher assignments; teacher-scoped attendance sessions and records; correction requests reviewed by Principal/Super Admin; daily and monthly reports; and parent attendance access through staff-managed guardian account links. Notifications remain planned.
 4. Examinations, subject marks, validation, result submission and approval, configurable grades, report cards, and revision history.
 5. Fee structures, discounts, invoices, partial payments, allocations, receipts, refunds, overdue tracking, and reports.
 6. Excel import/export, PDF documents, authorized downloads, announcements, messaging, email, and audit logs.
@@ -46,4 +46,4 @@ Super Admin; Admission Officer; Teacher; Accountant; Parent/Student; Principal. 
 
 The authoritative scope and implementation details are in [plan.md](plan.md). Follow [AGENTS.md](AGENTS.md) and keep [README.md](README.md), this file, and [llms.txt](llms.txt) synchronized with the actual repository state.
 
-The focused learning guides are [Phase 1](guides/PHASE1_THEORY_QUICK_GUIDE.md) and [Phase 2](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md).
+The focused learning guides are [Phase 1](guides/PHASE1_THEORY_QUICK_GUIDE.md), [Phase 2](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md), and [Phase 3](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md).

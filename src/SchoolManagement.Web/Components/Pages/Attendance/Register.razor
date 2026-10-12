@@ -1,0 +1,208 @@
+@page "/attendance/register"
+@attribute [Authorize(Roles = SchoolRoles.Teacher)]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Attendance
+@using SchoolManagement.Core.Enums
+@inject IAttendanceService Attendance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Attendance register</PageTitle>
+<p><a href="/teacher">← Teacher dashboard</a></p>
+
+@if (_register is null)
+{
+    <h1>Attendance register</h1>
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert alert-danger" role="alert">@_message</div>
+    }
+    else
+    {
+        <p>Loading the assigned roster…</p>
+    }
+}
+else
+{
+    <h1>@_register.Assignment.ClassName — @_register.Assignment.SectionName</h1>
+    <p class="lead">@_register.Assignment.SubjectName · @_date.ToString("dd MMM yyyy")</p>
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+    }
+
+    <div class="card mb-4"><div class="card-body">
+        <EditForm Model="_dateForm" OnValidSubmit="LoadAsync" FormName="attendance-date">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-4"><label class="form-label" for="attendance-date">Date</label><InputDate id="attendance-date" class="form-control" @bind-Value="_dateForm.Date" /></div>
+                <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Load register</button></div>
+            </div>
+        </EditForm>
+    </div></div>
+
+    @if (_register.Students.Count == 0)
+    {
+        <div class="alert alert-info">There are no active students enrolled in this section for the academic year.</div>
+    }
+    else if (!_register.IsSubmitted)
+    {
+        <div class="alert alert-warning">Choose a status for every active student. After submission, use correction requests to change a record.</div>
+        <EditForm Model="_registerForm" OnValidSubmit="SubmitAsync" FormName="attendance-entry">
+            <DataAnnotationsValidator />
+            <div class="table-responsive"><table class="table table-striped align-middle">
+                <thead><tr><th>Student number</th><th>Student</th><th>Status</th><th>Note</th></tr></thead>
+                <tbody>@foreach (var student in _registerForm.Students)
+                {
+                    <tr><td>@student.StudentNumber</td><td>@student.StudentName</td>
+                        <td><InputSelect class="form-select" @bind-Value="student.Status">@foreach (var status in Enum.GetValues<AttendanceStatus>()) { <option value="@status">@status</option> }</InputSelect></td>
+                        <td><InputText class="form-control" maxlength="300" @bind-Value="student.Note" /></td>
+                    </tr>
+                }</tbody>
+            </table></div>
+            <button class="btn btn-primary" type="submit" disabled="@_isSaving">Submit attendance</button>
+        </EditForm>
+    }
+    else
+    {
+        <div class="alert alert-success">Submitted @_register.EnteredAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm").</div>
+        <div class="table-responsive"><table class="table table-striped align-middle">
+            <thead><tr><th>Student number</th><th>Student</th><th>Saved status</th><th>Note</th><th>Correction request</th></tr></thead>
+            <tbody>@foreach (var student in _register.Students)
+            {
+                <tr><td>@student.StudentNumber</td><td>@student.StudentName</td><td><span class="badge text-bg-secondary">@student.Status</span></td><td>@(string.IsNullOrWhiteSpace(student.Note) ? "—" : student.Note)</td>
+                    <td>
+                        <EditForm Model="GetCorrectionForm(student.StudentId)" OnValidSubmit="() => RequestCorrectionAsync(student.StudentId)" FormName="@($"correction-{student.StudentId}")">
+                            <div class="d-flex gap-2">
+                                <InputSelect class="form-select form-select-sm" @bind-Value="GetCorrectionForm(student.StudentId).Status">@foreach (var status in Enum.GetValues<AttendanceStatus>()) { <option value="@status">@status</option> }</InputSelect>
+                                <InputText class="form-control form-control-sm" placeholder="Reason" maxlength="500" @bind-Value="GetCorrectionForm(student.StudentId).Reason" />
+                                <button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">Request</button>
+                            </div>
+                        </EditForm>
+                    </td>
+                </tr>
+            }</tbody>
+        </table></div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public int AssignmentId { get; set; }
+    [SupplyParameterFromQuery] public string? Date { get; set; }
+
+    private string _teacherUserId = "";
+    private AttendanceRegister? _register;
+    private DateOnly _date = DateOnly.FromDateTime(DateTime.Today);
+    private readonly DateForm _dateForm = new();
+    private RegisterForm _registerForm = new();
+    private readonly Dictionary<int, CorrectionForm> _correctionForms = [];
+    private string? _message;
+    private bool _isError;
+    private bool _isSaving;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _teacherUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        if (DateOnly.TryParse(Date, out var parsedDate)) _date = parsedDate;
+        _dateForm.Date = _date.ToDateTime(TimeOnly.MinValue);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _message = null;
+        _date = DateOnly.FromDateTime(_dateForm.Date);
+        try
+        {
+            _register = await Attendance.GetRegisterAsync(_teacherUserId, AssignmentId, _date);
+            _registerForm = new RegisterForm
+            {
+                Students = _register.Students.Select(student => new RegisterStudentForm
+                {
+                    StudentId = student.StudentId,
+                    StudentNumber = student.StudentNumber,
+                    StudentName = student.StudentName,
+                    Status = AttendanceStatus.Present,
+                    Note = ""
+                }).ToList()
+            };
+            _correctionForms.Clear();
+            foreach (var student in _register.Students)
+            {
+                _correctionForms[student.StudentId] = new CorrectionForm
+                {
+                    Status = student.Status ?? AttendanceStatus.Present,
+                    Reason = ""
+                };
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _register = null;
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            await Attendance.SubmitAttendanceAsync(_teacherUserId, AssignmentId, _date, _registerForm.Students
+                .Select(student => new AttendanceEntryInput(student.StudentId, student.Status, student.Note)).ToArray());
+            _isError = false;
+            _message = "Attendance submitted. This register is now locked for entry.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+        finally { _isSaving = false; }
+    }
+
+    private CorrectionForm GetCorrectionForm(int studentId) => _correctionForms[studentId];
+
+    private async Task RequestCorrectionAsync(int studentId)
+    {
+        var form = GetCorrectionForm(studentId);
+        try
+        {
+            var student = _register?.Students.SingleOrDefault(item => item.StudentId == studentId);
+            if (student is null || !student.Status.HasValue) return;
+            if (form.Status == student.Status.Value)
+            {
+                throw new InvalidOperationException("Choose a different status before requesting a correction.");
+            }
+
+            await Attendance.RequestCorrectionAsync(_teacherUserId, student.RecordId ?? 0, form.Status, form.Reason);
+            _isError = false;
+            _message = "Correction request submitted for approval.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+
+    private sealed class DateForm { public DateTime Date { get; set; } = DateTime.Today; }
+    private sealed class RegisterForm { public List<RegisterStudentForm> Students { get; set; } = []; }
+    private sealed class RegisterStudentForm
+    {
+        public int StudentId { get; set; }
+        public string StudentNumber { get; set; } = "";
+        public string StudentName { get; set; } = "";
+        public AttendanceStatus Status { get; set; }
+        public string Note { get; set; } = "";
+    }
+    private sealed class CorrectionForm
+    {
+        [Required, StringLength(500)] public string Reason { get; set; } = "";
+        public AttendanceStatus Status { get; set; }
+    }
+}

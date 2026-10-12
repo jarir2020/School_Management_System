@@ -23,6 +23,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<StudentGuardian> StudentGuardians => Set<StudentGuardian>();
     public DbSet<Enrollment> Enrollments => Set<Enrollment>();
     public DbSet<StudentStatusHistory> StudentStatusHistories => Set<StudentStatusHistory>();
+    public DbSet<Subject> Subjects => Set<Subject>();
+    public DbSet<TeacherAssignment> TeacherAssignments => Set<TeacherAssignment>();
+    public DbSet<AttendanceSession> AttendanceSessions => Set<AttendanceSession>();
+    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<AttendanceCorrectionRequest> AttendanceCorrectionRequests => Set<AttendanceCorrectionRequest>();
+    public DbSet<GuardianAccountLink> GuardianAccountLinks => Set<GuardianAccountLink>();
 
     public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
         IsolationLevel isolationLevel,
@@ -223,6 +229,148 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(history => history.ChangedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Subject>(entity =>
+        {
+            entity.ToTable("Subjects");
+            entity.HasKey(subject => subject.Id);
+            entity.Property(subject => subject.Name).HasMaxLength(100).IsRequired();
+            entity.Property(subject => subject.Code).HasMaxLength(24).IsRequired();
+            entity.HasIndex(subject => subject.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<TeacherAssignment>(entity =>
+        {
+            entity.ToTable("TeacherAssignments");
+            entity.HasKey(assignment => assignment.Id);
+            entity.Property(assignment => assignment.TeacherUserId).HasMaxLength(450).IsRequired();
+            entity.Property(assignment => assignment.AssignedByUserId).HasMaxLength(450);
+            entity.HasIndex(assignment => new
+            {
+                assignment.TeacherUserId,
+                assignment.SectionId,
+                assignment.SubjectId,
+                assignment.AcademicYearId
+            }).IsUnique();
+            entity.HasIndex(assignment => new { assignment.SectionId, assignment.AcademicYearId });
+            entity.HasOne(assignment => assignment.Section)
+                .WithMany()
+                .HasForeignKey(assignment => assignment.SectionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(assignment => assignment.Subject)
+                .WithMany()
+                .HasForeignKey(assignment => assignment.SubjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(assignment => assignment.AcademicYear)
+                .WithMany()
+                .HasForeignKey(assignment => assignment.AcademicYearId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(assignment => assignment.TeacherUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(assignment => assignment.AssignedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AttendanceSession>(entity =>
+        {
+            entity.ToTable("AttendanceSessions");
+            entity.HasKey(session => session.Id);
+            entity.Property(session => session.TeacherUserId).HasMaxLength(450).IsRequired();
+            entity.Property(session => session.AttendanceDate).HasColumnType("date");
+            entity.HasIndex(session => new
+            {
+                session.SectionId,
+                session.SubjectId,
+                session.AcademicYearId,
+                session.AttendanceDate
+            }).IsUnique();
+            entity.HasIndex(session => new { session.TeacherUserId, session.AttendanceDate });
+            entity.HasOne(session => session.Section)
+                .WithMany()
+                .HasForeignKey(session => session.SectionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(session => session.Subject)
+                .WithMany()
+                .HasForeignKey(session => session.SubjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(session => session.AcademicYear)
+                .WithMany()
+                .HasForeignKey(session => session.AcademicYearId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(session => session.TeacherUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AttendanceRecord>(entity =>
+        {
+            entity.ToTable("AttendanceRecords");
+            entity.HasKey(record => record.Id);
+            entity.Property(record => record.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(record => record.Note).HasMaxLength(300).IsRequired();
+            entity.HasIndex(record => new { record.AttendanceSessionId, record.StudentId }).IsUnique();
+            entity.HasIndex(record => record.StudentId);
+            entity.HasOne(record => record.AttendanceSession)
+                .WithMany(session => session.Records)
+                .HasForeignKey(record => record.AttendanceSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(record => record.Student)
+                .WithMany()
+                .HasForeignKey(record => record.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AttendanceCorrectionRequest>(entity =>
+        {
+            entity.ToTable("AttendanceCorrectionRequests");
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.PreviousStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(request => request.RequestedStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(request => request.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(request => request.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(request => request.RequestedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(request => request.ReviewedByUserId).HasMaxLength(450);
+            entity.Property(request => request.ReviewerRemarks).HasMaxLength(500);
+            entity.HasIndex(request => new { request.AttendanceRecordId, request.Status });
+            entity.HasOne(request => request.AttendanceRecord)
+                .WithMany()
+                .HasForeignKey(request => request.AttendanceRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(request => request.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(request => request.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<GuardianAccountLink>(entity =>
+        {
+            entity.ToTable("GuardianAccountLinks");
+            entity.HasKey(link => new { link.GuardianId, link.UserId });
+            entity.Property(link => link.UserId).HasMaxLength(450).IsRequired();
+            entity.Property(link => link.LinkedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(link => link.UserId);
+            entity.HasOne(link => link.Guardian)
+                .WithMany()
+                .HasForeignKey(link => link.GuardianId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(link => link.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(link => link.LinkedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

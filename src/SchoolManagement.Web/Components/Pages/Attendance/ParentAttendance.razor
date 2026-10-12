@@ -1,0 +1,80 @@
+@page "/parent/attendance"
+@attribute [Authorize(Roles = SchoolRoles.ParentStudent)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Attendance
+@inject IAttendanceService Attendance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>My children's attendance</PageTitle>
+<h1>Children's attendance</h1>
+<p>Attendance is shown only for children linked to your parent account by school staff.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert alert-danger" role="alert">@_message</div>
+}
+
+<section class="card mb-4"><div class="card-body">
+    <EditForm Model="_filter" OnValidSubmit="LoadAsync" FormName="parent-attendance-filter">
+        <div class="row g-3 align-items-end">
+            <div class="col-sm-6 col-md-3"><label class="form-label" for="attendance-from">From</label><InputDate id="attendance-from" class="form-control" @bind-Value="_filter.Start" /></div>
+            <div class="col-sm-6 col-md-3"><label class="form-label" for="attendance-to">To</label><InputDate id="attendance-to" class="form-control" @bind-Value="_filter.End" /></div>
+            <div class="col-auto"><button class="btn btn-primary" type="submit">Show attendance</button></div>
+        </div>
+    </EditForm>
+</div></section>
+
+@if (_rows is null)
+{
+    <p>Loading linked children's attendance…</p>
+}
+else if (_rows.Count == 0)
+{
+    <div class="alert alert-info">No attendance was found for linked children in this date range. If a child is missing, contact the school office to verify the parent account link.</div>
+}
+else
+{
+    <div class="table-responsive"><table class="table table-striped align-middle">
+        <thead><tr><th>Date</th><th>Child</th><th>Class</th><th>Subject</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody>@foreach (var row in _rows)
+        {
+            <tr><td>@row.AttendanceDate.ToString("dd MMM yyyy")</td><td>@row.StudentName <small class="d-block text-body-secondary">@row.StudentNumber</small></td><td>@row.ClassName — @row.SectionName</td><td>@row.SubjectName</td><td><span class="badge @(row.Status == SchoolManagement.Core.Enums.AttendanceStatus.Present ? "text-bg-success" : row.Status == SchoolManagement.Core.Enums.AttendanceStatus.Absent ? "text-bg-danger" : "text-bg-secondary")">@row.Status</span></td><td>@(string.IsNullOrWhiteSpace(row.Note) ? "—" : row.Note)</td></tr>
+        }</tbody>
+    </table></div>
+}
+
+@code {
+    private string _parentUserId = "";
+    private IReadOnlyList<ParentAttendanceSummary>? _rows;
+    private string? _message;
+    private readonly DateFilter _filter = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _parentUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        _filter.End = DateTime.Today;
+        _filter.Start = DateTime.Today.AddDays(-30);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _message = null;
+            _rows = await Attendance.GetMyAttendanceAsync(
+                _parentUserId,
+                DateOnly.FromDateTime(_filter.Start),
+                DateOnly.FromDateTime(_filter.End));
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _rows = [];
+            _message = exception.Message;
+        }
+    }
+
+    private sealed class DateFilter { public DateTime Start { get; set; } = DateTime.Today.AddDays(-30); public DateTime End { get; set; } = DateTime.Today; }
+}

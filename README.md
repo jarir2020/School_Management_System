@@ -4,7 +4,7 @@ A learning-focused school administration and fee management platform built with 
 
 ## Project status
 
-Phase 1 is implemented and its migration is applied to the local MySQL database. Phase 2 adds public admission applications, private document uploads, staff review and enrollment, and a searchable student directory. The solution builds successfully; run the Phase 2 walkthrough in its guide to exercise the full admission workflow. The full scope and roadmap are in [`plan.md`](plan.md).
+Phases 1–3 are implemented in source, and their migrations are applied to the configured local MySQL database. Phase 2 adds public applications, private documents, staff review, enrollment, and a student directory. Phase 3 adds teacher/subject assignments, attendance registers, reviewed corrections, daily/monthly reports, and linked-parent attendance access. The solution builds; the full Phase 2 and Phase 3 browser workflows still need manual walkthroughs. The full scope and roadmap are in [`plan.md`](plan.md).
 
 ## Technology
 
@@ -18,7 +18,7 @@ The application is a modular monolith. Admissions, academics, fees, and communic
 
 ## Planned capabilities
 
-- School setup, academic years, terms, classes, sections, and subjects
+- School setup, academic years, classes, sections, subjects, and teacher assignments
 - Admissions, student and guardian records, and enrollment approvals
 - Teacher assignments, attendance, examinations, and approved results
 - Fee structures, invoices, discounts, payments, receipts, and reports
@@ -49,7 +49,7 @@ dotnet build SchoolManagement.sln
 dotnet run --project src/SchoolManagement.Web
 ```
 
-In Development, the app applies checked-in EF Core migrations and seeds the six roles. It creates the first Super Admin only when `SeedAdmin:Email` and `SeedAdmin:Password` are configured. Public registration is disabled; later accounts are created from User management. Anonymous visitors can submit admission applications; only Super Admins and Admission Officers can review them and access private documents. See the [Phase 1 guide](guides/PHASE1_THEORY_QUICK_GUIDE.md) and [Phase 2 guide](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md).
+In Development, the app applies checked-in EF Core migrations and seeds the six roles. It creates the first Super Admin only when `SeedAdmin:Email` and `SeedAdmin:Password` are configured. Public registration is disabled; later accounts are created from User management. Anonymous visitors can submit admission applications; only Super Admins and Admission Officers can review them and access private documents. See the [Phase 1 guide](guides/PHASE1_THEORY_QUICK_GUIDE.md), [Phase 2 guide](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md), and [Phase 3 guide](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md).
 
 Follow [`AGENTS.md`](AGENTS.md) for implementation guidance. The current .NET 9 / EF Core 9 / Pomelo 9 combination was selected to match the installed SDK and provider compatibility. Upgrade the target framework after a stable compatible Pomelo release is available.
 
@@ -62,3 +62,4 @@ Follow [`AGENTS.md`](AGENTS.md) for implementation guidance. The current .NET 9 
 - [`LICENSE`](LICENSE) — MIT License
 - [`guides/PHASE1_THEORY_QUICK_GUIDE.md`](guides/PHASE1_THEORY_QUICK_GUIDE.md) — foundation concepts and setup walkthrough
 - [`guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md`](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md) — admissions workflow, private files, review, enrollment, and student directory
+- [`guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md`](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md) — teacher setup, attendance, corrections, reports, and parent access

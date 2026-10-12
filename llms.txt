@@ -12,4 +12,10 @@
 
 ## Current status
 
-Phase 1's migration is applied to the local MySQL database. Phase 2 source includes anonymous admission applications, private document uploads, role-protected review and approval, atomic student enrollment, paginated student search, profile updates, and CSV export. The solution builds and the admissions route serves. Complete the manual workflow in the Phase 2 guide before relying on the full admissions flow. Later roadmap modules remain planned.
+Phases 1–3 are implemented in source and their migrations are applied to the configured local MySQL database. Phase 2 includes applications, private documents, role-protected review, enrollment, and student directory tools. Phase 3 includes teacher assignments, one-time attendance registers, correction approval, scoped daily/monthly reports, and guardian-linked parent attendance. The solution builds; the Phase 2 and Phase 3 browser workflows still need manual walkthroughs. Examinations, finance, messaging, and deployment work remain planned.
+
+## Phase walkthroughs
+
+- [Phase 1 guide](guides/PHASE1_THEORY_QUICK_GUIDE.md)
+- [Phase 2 guide](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md)
+- [Phase 3 guide](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md)

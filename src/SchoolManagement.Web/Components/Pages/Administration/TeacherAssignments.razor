@@ -1,0 +1,180 @@
+@page "/admin/teacher-assignments"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Attendance
+@inject IAttendanceService Attendance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Teacher assignments</PageTitle>
+<h1>Teachers and subjects</h1>
+<p>Create subjects, then assign teachers to a section for an academic year. Existing attendance prevents an assignment from being removed.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-5">
+        <section class="card h-100">
+            <div class="card-body">
+                <h2 class="h5">Add subject</h2>
+                <EditForm Model="_subjectForm" OnValidSubmit="CreateSubjectAsync" FormName="create-subject">
+                    <DataAnnotationsValidator />
+                    <div class="mb-3"><label class="form-label" for="subject-name">Name</label><InputText id="subject-name" class="form-control" @bind-Value="_subjectForm.Name" /><ValidationMessage For="() => _subjectForm.Name" class="text-danger" /></div>
+                    <div class="row g-3">
+                        <div class="col-md-7"><label class="form-label" for="subject-code">Code</label><InputText id="subject-code" class="form-control" @bind-Value="_subjectForm.Code" /><ValidationMessage For="() => _subjectForm.Code" class="text-danger" /></div>
+                        <div class="col-md-5"><label class="form-label" for="subject-marks">Full marks</label><InputNumber id="subject-marks" class="form-control" @bind-Value="_subjectForm.FullMarks" /></div>
+                    </div>
+                    <button class="btn btn-primary mt-3" type="submit">Add subject</button>
+                </EditForm>
+                @if (_options is not null)
+                {
+                    <hr />
+                    <h3 class="h6">Subjects</h3>
+                    @if (_options.Subjects.Count == 0)
+                    {
+                        <p class="text-body-secondary mb-0">No subjects yet.</p>
+                    }
+                    else
+                    {
+                        <ul class="mb-0">@foreach (var subject in _options.Subjects) { <li>@subject.Name <span class="text-body-secondary">(@subject.Code, @subject.FullMarks marks)</span></li> }</ul>
+                    }
+                }
+            </div>
+        </section>
+    </div>
+    <div class="col-lg-7">
+        <section class="card h-100">
+            <div class="card-body">
+                <h2 class="h5">Assign a teacher</h2>
+                @if (_options is null)
+                {
+                    <p>Loading assignment options…</p>
+                }
+                else if (_options.Teachers.Count == 0 || _options.Subjects.Count == 0 || _options.Sections.Count == 0 || _options.AcademicYears.Count == 0)
+                {
+                    <p class="text-body-secondary">Add a teacher account, subject, section, and academic year before creating assignments.</p>
+                }
+                else
+                {
+                    <EditForm Model="_assignmentForm" OnValidSubmit="CreateAssignmentAsync" FormName="create-teacher-assignment">
+                        <DataAnnotationsValidator />
+                        <div class="mb-3"><label class="form-label" for="assignment-teacher">Teacher</label><InputSelect id="assignment-teacher" class="form-select" @bind-Value="_assignmentForm.TeacherUserId"><option value="">Select a teacher</option>@foreach (var teacher in _options.Teachers) { <option value="@teacher.UserId">@teacher.FullName — @teacher.Email</option> }</InputSelect></div>
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label" for="assignment-section">Class and section</label><InputSelect id="assignment-section" class="form-select" @bind-Value="_assignmentForm.SectionId"><option value="0">Select a section</option>@foreach (var schoolSection in _options.Sections) { <option value="@schoolSection.Id">@schoolSection.ClassName — @schoolSection.Name</option> }</InputSelect></div>
+                            <div class="col-md-6"><label class="form-label" for="assignment-subject">Subject</label><InputSelect id="assignment-subject" class="form-select" @bind-Value="_assignmentForm.SubjectId"><option value="0">Select a subject</option>@foreach (var subject in _options.Subjects) { <option value="@subject.Id">@subject.Name (@subject.Code)</option> }</InputSelect></div>
+                            <div class="col-md-6"><label class="form-label" for="assignment-year">Academic year</label><InputSelect id="assignment-year" class="form-select" @bind-Value="_assignmentForm.AcademicYearId"><option value="0">Select a year</option>@foreach (var year in _options.AcademicYears) { <option value="@year.Id">@year.Name</option> }</InputSelect></div>
+                        </div>
+                        <button class="btn btn-primary mt-3" type="submit">Save assignment</button>
+                    </EditForm>
+                }
+            </div>
+        </section>
+    </div>
+</div>
+
+<section class="card">
+    <div class="card-body">
+        <h2 class="h5">Current assignments</h2>
+        @if (_assignments.Count == 0)
+        {
+            <p class="text-body-secondary mb-0">No teacher assignments yet.</p>
+        }
+        else
+        {
+            <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+                <thead><tr><th>Teacher</th><th>Class</th><th>Subject</th><th>Academic year</th><th></th></tr></thead>
+                <tbody>@foreach (var assignment in _assignments)
+                {
+                    <tr><td>@assignment.TeacherName <small class="d-block text-body-secondary">@assignment.TeacherEmail</small></td><td>@assignment.ClassName — @assignment.SectionName</td><td>@assignment.SubjectName <small class="text-body-secondary">(@assignment.SubjectCode)</small></td><td>@assignment.AcademicYearName</td><td><button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAssignmentAsync(assignment.Id)">Remove</button></td></tr>
+                }</tbody>
+            </table></div>
+        }
+    </div>
+</section>
+
+@code {
+    private AttendanceSetupOptions? _options;
+    private List<TeacherAssignmentSummary> _assignments = [];
+    private readonly SubjectForm _subjectForm = new();
+    private readonly AssignmentForm _assignmentForm = new();
+    private string _actorUserId = "";
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task CreateSubjectAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await Attendance.CreateSubjectAsync(_actorUserId, new SubjectInput(_subjectForm.Name, _subjectForm.Code, _subjectForm.FullMarks));
+            _subjectForm.Name = "";
+            _subjectForm.Code = "";
+            _subjectForm.FullMarks = 100;
+            SetMessage("Subject added.");
+            await LoadAsync();
+        });
+    }
+
+    private async Task CreateAssignmentAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await Attendance.CreateAssignmentAsync(_actorUserId, new TeacherAssignmentInput(
+                _assignmentForm.TeacherUserId,
+                _assignmentForm.SectionId,
+                _assignmentForm.SubjectId,
+                _assignmentForm.AcademicYearId));
+            SetMessage("Teacher assignment saved.");
+            await LoadAsync();
+        });
+    }
+
+    private async Task DeleteAssignmentAsync(int assignmentId)
+    {
+        await RunAsync(async () =>
+        {
+            await Attendance.DeleteAssignmentAsync(_actorUserId, assignmentId);
+            SetMessage("Teacher assignment removed.");
+            await LoadAsync();
+        });
+    }
+
+    private async Task LoadAsync()
+    {
+        _options = await Attendance.GetSetupOptionsAsync(_actorUserId);
+        _assignments = (await Attendance.GetAssignmentsAsync(_actorUserId)).ToList();
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _isError = true; _message = exception.Message; }
+    }
+
+    private void SetMessage(string message) { _isError = false; _message = message; }
+
+    private sealed class SubjectForm
+    {
+        [Required, StringLength(100)] public string Name { get; set; } = "";
+        [Required, StringLength(24)] public string Code { get; set; } = "";
+        [Range(1, 10000)] public int FullMarks { get; set; } = 100;
+    }
+
+    private sealed class AssignmentForm
+    {
+        [Required] public string TeacherUserId { get; set; } = "";
+        [Range(1, int.MaxValue)] public int SectionId { get; set; }
+        [Range(1, int.MaxValue)] public int SubjectId { get; set; }
+        [Range(1, int.MaxValue)] public int AcademicYearId { get; set; }
+    }
+}

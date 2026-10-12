@@ -1,0 +1,53 @@
+@page "/teacher"
+@attribute [Authorize(Roles = SchoolRoles.Teacher)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Attendance
+@inject IAttendanceService Attendance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Teacher dashboard</PageTitle>
+<h1>Teacher dashboard</h1>
+<p>Open an assigned class to take attendance. Submitted registers are locked; use a correction request if a record needs to change.</p>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a class="btn btn-outline-primary" href="/attendance/reports">Attendance reports</a>
+    <a class="btn btn-outline-secondary" href="/attendance/corrections">Correction requests</a>
+</div>
+
+@if (_assignments is null)
+{
+    <p>Loading your teaching assignments…</p>
+}
+else if (_assignments.Count == 0)
+{
+    <div class="alert alert-info">No assignments are linked to your account yet. Ask a school administrator to assign your classes and subjects.</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var assignment in _assignments)
+        {
+            var date = DateOnly.FromDateTime(DateTime.Today);
+            <div class="col-md-6 col-xl-4">
+                <article class="card h-100"><div class="card-body">
+                    <h2 class="h5">@assignment.ClassName — @assignment.SectionName</h2>
+                    <p class="mb-1"><strong>@assignment.SubjectName</strong> <span class="text-body-secondary">(@assignment.SubjectCode)</span></p>
+                    <p class="text-body-secondary">@assignment.AcademicYearName · @assignment.AcademicYearStart.ToString("dd MMM yyyy") – @assignment.AcademicYearEnd.ToString("dd MMM yyyy")</p>
+                    <a class="btn btn-primary" href="@($"/attendance/register?assignmentId={assignment.Id}&date={date:yyyy-MM-dd}")">Take today's attendance</a>
+                </div></article>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<TeacherAssignmentSummary>? _assignments;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        _assignments = await Attendance.GetAssignmentsAsync(userId);
+    }
+}

@@ -37,6 +37,9 @@
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="admin/users">User management</NavLink>
                         </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="admin/teacher-assignments">Teachers and subjects</NavLink>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
                 <AuthorizeView Roles="@(SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)">
@@ -46,6 +49,36 @@
                         </div>
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="students">Students</NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+                <AuthorizeView Roles="@SchoolRoles.Teacher">
+                    <Authorized Context="teacherContext">
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="teacher">Teacher dashboard</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="attendance/reports">Attendance reports</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="attendance/corrections">Correction requests</NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+                <AuthorizeView Roles="@(SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)">
+                    <Authorized Context="attendanceManagementContext">
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="attendance/reports">Attendance reports</NavLink>
+                        </div>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="attendance/corrections">Attendance corrections</NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+                <AuthorizeView Roles="@SchoolRoles.ParentStudent">
+                    <Authorized Context="parentContext">
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="parent/attendance">Children's attendance</NavLink>
                         </div>
                     </Authorized>
                 </AuthorizeView>

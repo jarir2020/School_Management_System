@@ -1,0 +1,103 @@
+@page "/attendance/corrections"
+@attribute [Authorize(Roles = SchoolRoles.Teacher + "," + SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Attendance
+@using SchoolManagement.Core.Enums
+@inject IAttendanceService Attendance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Attendance corrections</PageTitle>
+<h1>Attendance correction requests</h1>
+<p>Teachers can review the requests they submitted. Principals and Super Admins can approve or reject requests, with the prior attendance status retained in history.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+@if (_requests is null)
+{
+    <p>Loading correction requests…</p>
+}
+else if (_requests.Count == 0)
+{
+    <div class="alert alert-info">There are no correction requests yet.</div>
+}
+else
+{
+    <div class="table-responsive"><table class="table table-striped align-middle">
+        <thead><tr><th>Date</th><th>Student</th><th>Class / subject</th><th>Change</th><th>Reason</th><th>Requested by</th><th>Status / review</th><th></th></tr></thead>
+        <tbody>@foreach (var request in _requests)
+        {
+            <tr>
+                <td>@request.AttendanceDate.ToString("dd MMM yyyy")</td>
+                <td>@request.StudentName <small class="d-block text-body-secondary">@request.StudentNumber</small></td>
+                <td>@request.ClassName — @request.SectionName <small class="d-block text-body-secondary">@request.SubjectName</small></td>
+                <td>@request.PreviousStatus → <strong>@request.RequestedStatus</strong></td>
+                <td>@request.Reason</td>
+                <td>@request.RequestedByName <small class="d-block text-body-secondary">@request.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></td>
+                <td><span class="badge @(request.Status == CorrectionRequestStatus.Pending ? "text-bg-warning" : request.Status == CorrectionRequestStatus.Approved ? "text-bg-success" : "text-bg-secondary")">@request.Status</span>@if (request.ReviewedByName is not null) { <small class="d-block">@request.ReviewedByName · @request.ReviewerRemarks</small> }</td>
+                <td>
+                    @if (request.Status == CorrectionRequestStatus.Pending)
+                    {
+                        <AuthorizeView Roles="@(SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)">
+                            <Authorized Context="approverContext">
+                                <div class="d-flex flex-column gap-1">
+                                    <input class="form-control form-control-sm" placeholder="Optional review note" maxlength="500" @bind="_remarks[request.Id]" />
+                                    <button class="btn btn-sm btn-success" @onclick="() => ReviewAsync(request.Id, true)">Approve</button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ReviewAsync(request.Id, false)">Reject</button>
+                                </div>
+                            </Authorized>
+                        </AuthorizeView>
+                    }
+                </td>
+            </tr>
+        }</tbody>
+    </table></div>
+}
+
+@code {
+    private string _actorUserId = "";
+    private IReadOnlyList<AttendanceCorrectionSummary>? _requests;
+    private readonly Dictionary<int, string> _remarks = [];
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _requests = await Attendance.GetCorrectionsAsync(_actorUserId);
+            foreach (var request in _requests) _remarks.TryAdd(request.Id, "");
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+
+    private async Task ReviewAsync(int correctionId, bool approve)
+    {
+        try
+        {
+            await Attendance.ReviewCorrectionAsync(_actorUserId, correctionId, approve, _remarks.GetValueOrDefault(correctionId));
+            _isError = false;
+            _message = approve ? "Correction approved and attendance updated." : "Correction request rejected.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+    }
+}

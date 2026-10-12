@@ -1,0 +1,130 @@
+@page "/attendance/reports"
+@attribute [Authorize(Roles = SchoolRoles.Teacher + "," + SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Attendance
+@inject IAttendanceService Attendance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Attendance reports</PageTitle>
+<h1>Attendance reports</h1>
+<p>Daily reports summarize each submitted register. Monthly reports group the month's saved records by student, class, section, and subject.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert alert-danger" role="alert">@_message</div>
+}
+
+<div class="row g-4">
+    <div class="col-12">
+        <section class="card"><div class="card-body">
+            <h2 class="h5">Daily report</h2>
+            <EditForm Model="_dailyFilter" OnValidSubmit="LoadDailyAsync" FormName="daily-attendance-report">
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-4 col-md-3"><label class="form-label" for="daily-date">Date</label><InputDate id="daily-date" class="form-control" @bind-Value="_dailyFilter.Date" /></div>
+                    <div class="col-auto"><button class="btn btn-primary" type="submit">Show daily report</button></div>
+                </div>
+            </EditForm>
+            @if (_daily is not null)
+            {
+                @if (_daily.Count == 0)
+                {
+                    <p class="text-body-secondary mt-3 mb-0">No attendance registers were submitted for this date.</p>
+                }
+                else
+                {
+                    <div class="table-responsive mt-3"><table class="table table-striped align-middle mb-0">
+                        <thead><tr><th>Class</th><th>Subject</th><th>Teacher</th><th>Students</th><th>Present</th><th>Absent</th><th>Late</th><th>Excused</th></tr></thead>
+                        <tbody>@foreach (var row in _daily)
+                        {
+                            <tr><td>@row.ClassName — @row.SectionName</td><td>@row.SubjectName</td><td>@row.TeacherName</td><td>@row.StudentCount</td><td>@row.PresentCount</td><td>@row.AbsentCount</td><td>@row.LateCount</td><td>@row.ExcusedCount</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+            }
+        </div></section>
+    </div>
+
+    <div class="col-12">
+        <section class="card"><div class="card-body">
+            <h2 class="h5">Monthly report</h2>
+            <EditForm Model="_monthlyFilter" OnValidSubmit="LoadMonthlyAsync" FormName="monthly-attendance-report">
+                <div class="row g-3 align-items-end">
+                    <div class="col-sm-5 col-md-3"><label class="form-label" for="monthly-date">Month</label><InputDate id="monthly-date" class="form-control" @bind-Value="_monthlyFilter.Month" /></div>
+                    <div class="col-sm-7 col-md-5"><label class="form-label" for="monthly-assignment">Assignment</label><InputSelect id="monthly-assignment" class="form-select" @bind-Value="_monthlyFilter.AssignmentId"><option value="0">All available assignments</option>@foreach (var assignment in _assignments) { <option value="@assignment.Id">@assignment.ClassName — @assignment.SectionName · @assignment.SubjectName · @assignment.AcademicYearName</option> }</InputSelect></div>
+                    <div class="col-auto"><button class="btn btn-primary" type="submit">Show monthly report</button></div>
+                </div>
+            </EditForm>
+            @if (_monthly is not null)
+            {
+                @if (_monthly.Count == 0)
+                {
+                    <p class="text-body-secondary mt-3 mb-0">No attendance records were found for this month.</p>
+                }
+                else
+                {
+                    <div class="table-responsive mt-3"><table class="table table-striped align-middle mb-0">
+                        <thead><tr><th>Student</th><th>Class</th><th>Subject</th><th>Sessions</th><th>Present</th><th>Absent</th><th>Late</th><th>Excused</th><th>Attendance</th></tr></thead>
+                        <tbody>@foreach (var row in _monthly)
+                        {
+                            <tr><td>@row.StudentName <small class="d-block text-body-secondary">@row.StudentNumber</small></td><td>@row.ClassName — @row.SectionName</td><td>@row.SubjectName</td><td>@row.SessionCount</td><td>@row.PresentCount</td><td>@row.AbsentCount</td><td>@row.LateCount</td><td>@row.ExcusedCount</td><td>@row.AttendancePercentage.ToString("0.0")%</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+            }
+        </div></section>
+    </div>
+</div>
+
+@code {
+    private string _actorUserId = "";
+    private IReadOnlyList<TeacherAssignmentSummary> _assignments = [];
+    private IReadOnlyList<DailyAttendanceSession>? _daily;
+    private IReadOnlyList<MonthlyStudentAttendance>? _monthly;
+    private string? _message;
+    private readonly DailyFilter _dailyFilter = new();
+    private readonly MonthlyFilter _monthlyFilter = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        try
+        {
+            _assignments = await Attendance.GetAssignmentsAsync(_actorUserId);
+            await LoadDailyAsync();
+            await LoadMonthlyAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            _message = exception.Message;
+        }
+    }
+
+    private async Task LoadDailyAsync()
+    {
+        try
+        {
+            _message = null;
+            _daily = await Attendance.GetDailyReportAsync(_actorUserId, DateOnly.FromDateTime(_dailyFilter.Date));
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _message = exception.Message; }
+    }
+
+    private async Task LoadMonthlyAsync()
+    {
+        try
+        {
+            _message = null;
+            _monthly = await Attendance.GetMonthlyReportAsync(
+                _actorUserId,
+                _monthlyFilter.Month.Year,
+                _monthlyFilter.Month.Month,
+                _monthlyFilter.AssignmentId > 0 ? _monthlyFilter.AssignmentId : null);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException) { _message = exception.Message; }
+    }
+
+    private sealed class DailyFilter { public DateTime Date { get; set; } = DateTime.Today; }
+    private sealed class MonthlyFilter { public DateTime Month { get; set; } = new(DateTime.Today.Year, DateTime.Today.Month, 1); public int AssignmentId { get; set; } }
+}
