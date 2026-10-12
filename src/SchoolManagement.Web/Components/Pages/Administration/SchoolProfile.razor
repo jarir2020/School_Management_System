@@ -1,0 +1,100 @@
+@page "/admin/school-profile"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.ComponentModel.DataAnnotations
+@inject ISchoolSetupService SchoolSetup
+
+<PageTitle>School profile</PageTitle>
+<h1>School profile</h1>
+<p>Set the school contact details and the timezone used by future date-based workflows.</p>
+
+@if (_saved)
+{
+    <div class="alert alert-success" role="status">School profile saved.</div>
+}
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+
+<EditForm Model="_form" OnValidSubmit="SaveAsync" FormName="school-profile">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+    <div class="mb-3">
+        <label class="form-label" for="school-name">School name</label>
+        <InputText id="school-name" class="form-control" @bind-Value="_form.Name" />
+        <ValidationMessage For="() => _form.Name" class="text-danger" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="school-address">Address</label>
+        <InputTextArea id="school-address" class="form-control" @bind-Value="_form.Address" />
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label" for="school-phone">Phone</label>
+            <InputText id="school-phone" class="form-control" @bind-Value="_form.Phone" />
+            <ValidationMessage For="() => _form.Phone" class="text-danger" />
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label" for="school-email">Email</label>
+            <InputText id="school-email" type="email" class="form-control" @bind-Value="_form.Email" />
+            <ValidationMessage For="() => _form.Email" class="text-danger" />
+        </div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="school-timezone">Timezone ID</label>
+        <InputText id="school-timezone" class="form-control" @bind-Value="_form.TimeZoneId" />
+        <div class="form-text">Use an IANA timezone such as Asia/Dhaka or UTC.</div>
+        <ValidationMessage For="() => _form.TimeZoneId" class="text-danger" />
+    </div>
+    <button class="btn btn-primary" type="submit">Save school profile</button>
+</EditForm>
+
+@code {
+    private readonly SchoolProfileForm _form = new();
+    private string? _error;
+    private bool _saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await SchoolSetup.GetSchoolProfileAsync();
+        _form.Name = profile.Name;
+        _form.Address = profile.Address;
+        _form.Phone = profile.Phone;
+        _form.Email = profile.Email;
+        _form.TimeZoneId = profile.TimeZoneId;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saved = false;
+        _error = null;
+        try
+        {
+            await SchoolSetup.SaveSchoolProfileAsync(
+                new SchoolProfileInput(_form.Name, _form.Address, _form.Phone, _form.Email, _form.TimeZoneId));
+            _saved = true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            _error = exception.Message;
+        }
+    }
+
+    private sealed class SchoolProfileForm
+    {
+        [Required, StringLength(160)]
+        public string Name { get; set; } = "";
+
+        [StringLength(500)]
+        public string Address { get; set; } = "";
+
+        [Phone, StringLength(40)]
+        public string Phone { get; set; } = "";
+
+        [EmailAddress, StringLength(254)]
+        public string Email { get; set; } = "";
+
+        [Required, StringLength(100)]
+        public string TimeZoneId { get; set; } = "UTC";
+    }
+}

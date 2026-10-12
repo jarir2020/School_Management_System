@@ -1,6 +1,6 @@
 # School_Management_System
 
-> A learning-focused school administration and fee management platform planned with ASP.NET Core, Blazor Interactive Server, EF Core, and MySQL.
+> A learning-focused school administration and fee management platform built with ASP.NET Core, Blazor Interactive Server, EF Core, and MySQL.
 
 ## Project documents
 
@@ -12,4 +12,4 @@
 
 ## Current status
 
-The repository is at the planning stage. Application source, migrations, and runnable commands have not been added yet. Treat planned capabilities as future work until implementation is present.
+Phase 1 implementation is in place: Identity sign-in, role-protected administration, school profile, academic years, classes, sections, user management, and an initial MySQL migration. The solution builds. Database CRUD has not yet been exercised because a MySQL server was unavailable in the implementation environment. Treat all later roadmap modules as planned until implemented.

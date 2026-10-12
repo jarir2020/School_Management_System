@@ -1,0 +1,242 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.ComponentModel.DataAnnotations
+@inject IUserManagementService UserManagement
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>User management</PageTitle>
+<h1>User management</h1>
+<p>Create staff and family accounts, assign one or more roles, and lock accounts that should not sign in.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+<section class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Create account</h2>
+        <EditForm Model="_form" OnValidSubmit="CreateAsync" FormName="school-user">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label" for="user-name">Full name</label>
+                    <InputText id="user-name" class="form-control" @bind-Value="_form.FullName" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label" for="user-email">Email</label>
+                    <InputText id="user-email" type="email" class="form-control" @bind-Value="_form.Email" autocomplete="off" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label" for="user-phone">Phone</label>
+                    <InputText id="user-phone" class="form-control" @bind-Value="_form.Phone" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label" for="user-password">Temporary password</label>
+                    <InputText id="user-password" type="password" class="form-control" @bind-Value="_form.Password" autocomplete="new-password" />
+                    <div class="form-text">At least 12 characters with upper-case, lower-case, a number, and a symbol.</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label" for="user-confirm-password">Confirm password</label>
+                    <InputText id="user-confirm-password" type="password" class="form-control" @bind-Value="_form.ConfirmPassword" autocomplete="new-password" />
+                </div>
+            </div>
+            <fieldset class="mb-3">
+                <legend class="h6">Roles</legend>
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach (var role in _roles)
+                    {
+                        <label class="form-check-label">
+                            <input class="form-check-input me-1" type="checkbox" checked="@_newRoles.Contains(role)" @onchange="args => SetNewRole(role, args)" />
+                            @role
+                        </label>
+                    }
+                </div>
+            </fieldset>
+            <button class="btn btn-primary" type="submit" disabled="@(_roles.Count == 0)">Create account</button>
+        </EditForm>
+    </div>
+</section>
+
+<h2 class="h4">Accounts</h2>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>Name</th><th>Email</th><th>Roles</th><th>Access</th><th>Actions</th></tr></thead>
+        <tbody>
+            @foreach (var user in _users)
+            {
+                <tr>
+                    <td>@user.FullName</td>
+                    <td>@user.Email</td>
+                    <td>
+                        <div class="d-flex flex-column gap-1">
+                            @foreach (var role in _roles)
+                            {
+                                <label class="form-check-label">
+                                    <input class="form-check-input me-1" type="checkbox" checked="@user.Roles.Contains(role)" @onchange="args => UpdateRoleAsync(user, role, args)" />
+                                    @role
+                                </label>
+                            }
+                        </div>
+                    </td>
+                    <td>@(user.IsLockedOut ? "Locked" : "Active")</td>
+                    <td>
+                        <button class="btn btn-sm @(user.IsLockedOut ? "btn-outline-success" : "btn-outline-danger")"
+                                type="button"
+                                disabled="@(user.Id == _currentUserId)"
+                                title="@(user.Id == _currentUserId ? "You cannot change your own account lock state." : null)"
+                                @onclick="() => ChangeLockAsync(user)">
+                            @(user.IsLockedOut ? "Unlock" : "Lock")
+                        </button>
+                    </td>
+                </tr>
+            }
+            @if (_users.Count == 0)
+            {
+                <tr><td colspan="5" class="text-center text-body-secondary">No accounts found.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private readonly CreateUserForm _form = new();
+    private readonly HashSet<string> _newRoles = new(StringComparer.Ordinal);
+    private List<string> _roles = [];
+    private List<ManagedSchoolUser> _users = [];
+    private string _currentUserId = "";
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _roles = (await UserManagement.GetAssignableRolesAsync()).ToList();
+        _users = (await UserManagement.GetUsersAsync()).ToList();
+    }
+
+    private void SetNewRole(string role, ChangeEventArgs args)
+    {
+        if (args.Value is true)
+        {
+            _newRoles.Add(role);
+        }
+        else
+        {
+            _newRoles.Remove(role);
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_form.Password != _form.ConfirmPassword)
+        {
+            SetError("The password confirmation does not match.");
+            return;
+        }
+
+        try
+        {
+            await UserManagement.CreateUserAsync(new CreateSchoolUserInput(
+                _form.FullName,
+                _form.Email,
+                _form.Phone,
+                _form.Password,
+                _newRoles.ToArray()));
+            _form.Reset();
+            _newRoles.Clear();
+            SetMessage("Account created.");
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private async Task UpdateRoleAsync(ManagedSchoolUser user, string role, ChangeEventArgs args)
+    {
+        var roles = user.Roles.ToHashSet(StringComparer.Ordinal);
+        if (args.Value is true)
+        {
+            roles.Add(role);
+        }
+        else
+        {
+            roles.Remove(role);
+        }
+
+        try
+        {
+            await UserManagement.UpdateUserRolesAsync(user.Id, roles.ToArray(), _currentUserId);
+            SetMessage($"Roles updated for {user.Email}.");
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task ChangeLockAsync(ManagedSchoolUser user)
+    {
+        try
+        {
+            await UserManagement.SetUserLockedOutAsync(user.Id, !user.IsLockedOut, _currentUserId);
+            SetMessage(user.IsLockedOut ? "Account unlocked." : "Account locked.");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+
+        await LoadAsync();
+    }
+
+    private void SetMessage(string message)
+    {
+        _isError = false;
+        _message = message;
+    }
+
+    private void SetError(string message)
+    {
+        _isError = true;
+        _message = message;
+    }
+
+    private sealed class CreateUserForm
+    {
+        [Required, StringLength(160)]
+        public string FullName { get; set; } = "";
+
+        [Required, EmailAddress, StringLength(254)]
+        public string Email { get; set; } = "";
+
+        [Phone, StringLength(40)]
+        public string Phone { get; set; } = "";
+
+        [Required, MinLength(12)]
+        public string Password { get; set; } = "";
+
+        [Required]
+        public string ConfirmPassword { get; set; } = "";
+
+        public void Reset()
+        {
+            FullName = "";
+            Email = "";
+            Phone = "";
+            Password = "";
+            ConfirmPassword = "";
+        }
+    }
+}

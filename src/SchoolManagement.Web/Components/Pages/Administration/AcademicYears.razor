@@ -1,0 +1,185 @@
+@page "/admin/academic-years"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.ComponentModel.DataAnnotations
+@inject ISchoolSetupService SchoolSetup
+@inject IJSRuntime JavaScript
+
+<PageTitle>Academic years</PageTitle>
+<h1>Academic years</h1>
+<p>Create school-year date ranges and select the one used for current operations.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+<section class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">@(_editingId.HasValue ? "Edit academic year" : "Add academic year")</h2>
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" FormName="academic-year">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+            <div class="row align-items-end">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label" for="year-name">Name</label>
+                    <InputText id="year-name" class="form-control" @bind-Value="_form.Name" />
+                    <ValidationMessage For="() => _form.Name" class="text-danger" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label" for="year-start">Start date</label>
+                    <InputDate id="year-start" class="form-control" @bind-Value="_form.StartDate" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label" for="year-end">End date</label>
+                    <InputDate id="year-end" class="form-control" @bind-Value="_form.EndDate" />
+                </div>
+                <div class="col-md-2 mb-3 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Save</button>
+                    @if (_editingId.HasValue)
+                    {
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CancelEdit">Cancel</button>
+                    }
+                </div>
+            </div>
+        </EditForm>
+    </div>
+</section>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>Name</th><th>Dates</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+            @foreach (var year in _years)
+            {
+                <tr>
+                    <td>@year.Name</td>
+                    <td>@year.StartDate.ToString("dd MMM yyyy") – @year.EndDate.ToString("dd MMM yyyy")</td>
+                    <td>@(year.IsActive ? "Active" : "Inactive")</td>
+                    <td class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => Edit(year)">Edit</button>
+                        @if (!year.IsActive)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => ActivateAsync(year)">Make active</button>
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(year)">Delete</button>
+                    </td>
+                </tr>
+            }
+            @if (_years.Count == 0)
+            {
+                <tr><td colspan="4" class="text-center text-body-secondary">No academic years have been added.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<AcademicYear> _years = [];
+    private readonly AcademicYearForm _form = new();
+    private int? _editingId;
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _years = (await SchoolSetup.GetAcademicYearsAsync()).ToList();
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var input = new AcademicYearInput(_form.Name, _form.StartDate, _form.EndDate);
+            if (_editingId.HasValue)
+            {
+                await SchoolSetup.UpdateAcademicYearAsync(_editingId.Value, input);
+                SetMessage("Academic year updated.");
+            }
+            else
+            {
+                await SchoolSetup.CreateAcademicYearAsync(input);
+                SetMessage("Academic year added.");
+            }
+
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private void Edit(AcademicYear year)
+    {
+        _editingId = year.Id;
+        _form.Name = year.Name;
+        _form.StartDate = year.StartDate;
+        _form.EndDate = year.EndDate;
+        ClearMessage();
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _form.Name = "";
+        _form.StartDate = new DateOnly(DateTime.UtcNow.Year, 1, 1);
+        _form.EndDate = new DateOnly(DateTime.UtcNow.Year, 12, 31);
+    }
+
+    private async Task ActivateAsync(AcademicYear year)
+    {
+        try
+        {
+            await SchoolSetup.SetActiveAcademicYearAsync(year.Id);
+            SetMessage($"{year.Name} is now active.");
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private async Task DeleteAsync(AcademicYear year)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"Delete academic year {year.Name}?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await SchoolSetup.DeleteAcademicYearAsync(year.Id);
+            SetMessage("Academic year deleted.");
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private void SetMessage(string message)
+    {
+        _isError = false;
+        _message = message;
+    }
+
+    private void SetError(string message)
+    {
+        _isError = true;
+        _message = message;
+    }
+
+    private void ClearMessage() => _message = null;
+
+    private sealed class AcademicYearForm
+    {
+        [Required, StringLength(32)]
+        public string Name { get; set; } = "";
+
+        public DateOnly StartDate { get; set; } = new(DateTime.UtcNow.Year, 1, 1);
+
+        public DateOnly EndDate { get; set; } = new(DateTime.UtcNow.Year, 12, 31);
+    }
+}

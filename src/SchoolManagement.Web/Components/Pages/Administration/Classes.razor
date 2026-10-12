@@ -1,0 +1,294 @@
+@page "/admin/classes"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin)]
+@using System.ComponentModel.DataAnnotations
+@inject ISchoolSetupService SchoolSetup
+@inject IJSRuntime JavaScript
+
+<PageTitle>Classes and sections</PageTitle>
+<h1>Classes and sections</h1>
+<p>Set up grade levels and the sections within each class. Student enrollment will use this structure in Phase 2.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <section class="card">
+            <div class="card-body">
+                <h2 class="h5">@(_editingClassId.HasValue ? "Edit class" : "Add class")</h2>
+                <EditForm Model="_classForm" OnValidSubmit="SaveClassAsync" FormName="school-class">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" />
+                    <div class="mb-3">
+                        <label class="form-label" for="class-name">Class name</label>
+                        <InputText id="class-name" class="form-control" @bind-Value="_classForm.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="class-grade">Grade level (0 for pre-primary)</label>
+                        <InputNumber id="class-grade" class="form-control" @bind-Value="_classForm.GradeLevel" />
+                    </div>
+                    <button class="btn btn-primary" type="submit">Save class</button>
+                    @if (_editingClassId.HasValue)
+                    {
+                        <button class="btn btn-outline-secondary ms-2" type="button" @onclick="CancelClassEdit">Cancel</button>
+                    }
+                </EditForm>
+            </div>
+        </section>
+
+        <section class="card mt-4">
+            <div class="card-body">
+                <h2 class="h5">@(_editingSectionId.HasValue ? "Edit section" : "Add section")</h2>
+                <EditForm Model="_sectionForm" OnValidSubmit="SaveSectionAsync" FormName="school-section">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" />
+                    <div class="mb-3">
+                        <label class="form-label" for="section-class">Class</label>
+                        <InputSelect id="section-class" class="form-select" @bind-Value="_sectionForm.ClassId">
+                            <option value="0">Select a class</option>
+                            @foreach (var schoolClass in _classes)
+                            {
+                                <option value="@schoolClass.Id">@schoolClass.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="section-name">Section name</label>
+                        <InputText id="section-name" class="form-control" @bind-Value="_sectionForm.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="section-capacity">Capacity</label>
+                        <InputNumber id="section-capacity" class="form-control" @bind-Value="_sectionForm.Capacity" />
+                    </div>
+                    <button class="btn btn-primary" type="submit" disabled="@(_classes.Count == 0)">Save section</button>
+                    @if (_editingSectionId.HasValue)
+                    {
+                        <button class="btn btn-outline-secondary ms-2" type="button" @onclick="CancelSectionEdit">Cancel</button>
+                    }
+                </EditForm>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-lg-7">
+        @if (_classes.Count == 0)
+        {
+            <div class="alert alert-info">Add a class first, then add its sections.</div>
+        }
+        @foreach (var schoolClass in _classes)
+        {
+            <section class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center gap-2">
+                    <div><strong>@schoolClass.Name</strong> <span class="text-body-secondary">(grade @schoolClass.GradeLevel)</span></div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary" type="button" @onclick="() => EditClass(schoolClass)">Edit</button>
+                        <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => DeleteClassAsync(schoolClass)">Delete</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h3 class="h6 mb-0">Sections</h3>
+                        <button class="btn btn-sm btn-outline-success" type="button" @onclick="() => StartSectionFor(schoolClass.Id)">Add section</button>
+                    </div>
+                    @if (schoolClass.Sections.Count == 0)
+                    {
+                        <p class="text-body-secondary mb-0">No sections yet.</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group">
+                            @foreach (var schoolSection in schoolClass.Sections)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                                    <span>@schoolSection.Name <span class="text-body-secondary">· capacity @schoolSection.Capacity</span></span>
+                                    <span class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-primary" type="button" @onclick="() => EditSection(schoolSection)">Edit</button>
+                                        <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => DeleteSectionAsync(schoolSection)">Delete</button>
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+</div>
+
+@code {
+    private List<SchoolClass> _classes = [];
+    private int? _editingClassId;
+    private int? _editingSectionId;
+    private string? _message;
+    private bool _isError;
+    private readonly SchoolClassForm _classForm = new();
+    private readonly SectionForm _sectionForm = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _classes = (await SchoolSetup.GetClassesAsync()).ToList();
+
+    private async Task SaveClassAsync()
+    {
+        try
+        {
+            var input = new SchoolClassInput(_classForm.Name, _classForm.GradeLevel);
+            if (_editingClassId.HasValue)
+            {
+                await SchoolSetup.UpdateClassAsync(_editingClassId.Value, input);
+                SetMessage("Class updated.");
+            }
+            else
+            {
+                await SchoolSetup.CreateClassAsync(input);
+                SetMessage("Class added.");
+            }
+
+            CancelClassEdit();
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private void EditClass(SchoolClass schoolClass)
+    {
+        _editingClassId = schoolClass.Id;
+        _classForm.Name = schoolClass.Name;
+        _classForm.GradeLevel = schoolClass.GradeLevel;
+        ClearMessage();
+    }
+
+    private void CancelClassEdit()
+    {
+        _editingClassId = null;
+        _classForm.Name = "";
+        _classForm.GradeLevel = 0;
+    }
+
+    private async Task DeleteClassAsync(SchoolClass schoolClass)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"Delete class {schoolClass.Name}?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await SchoolSetup.DeleteClassAsync(schoolClass.Id);
+            SetMessage("Class deleted.");
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private void StartSectionFor(int classId)
+    {
+        CancelSectionEdit();
+        _sectionForm.ClassId = classId;
+        ClearMessage();
+    }
+
+    private void EditSection(Section section)
+    {
+        _editingSectionId = section.Id;
+        _sectionForm.ClassId = section.ClassId;
+        _sectionForm.Name = section.Name;
+        _sectionForm.Capacity = section.Capacity;
+        ClearMessage();
+    }
+
+    private async Task SaveSectionAsync()
+    {
+        try
+        {
+            var input = new SectionInput(_sectionForm.ClassId, _sectionForm.Name, _sectionForm.Capacity);
+            if (_editingSectionId.HasValue)
+            {
+                await SchoolSetup.UpdateSectionAsync(_editingSectionId.Value, input);
+                SetMessage("Section updated.");
+            }
+            else
+            {
+                await SchoolSetup.CreateSectionAsync(input);
+                SetMessage("Section added.");
+            }
+
+            CancelSectionEdit();
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private void CancelSectionEdit()
+    {
+        _editingSectionId = null;
+        _sectionForm.ClassId = 0;
+        _sectionForm.Name = "";
+        _sectionForm.Capacity = 30;
+    }
+
+    private async Task DeleteSectionAsync(Section section)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"Delete section {section.Name}?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await SchoolSetup.DeleteSectionAsync(section.Id);
+            SetMessage("Section deleted.");
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            SetError(exception.Message);
+        }
+    }
+
+    private void SetMessage(string message)
+    {
+        _isError = false;
+        _message = message;
+    }
+
+    private void SetError(string message)
+    {
+        _isError = true;
+        _message = message;
+    }
+
+    private void ClearMessage() => _message = null;
+
+    private sealed class SchoolClassForm
+    {
+        [Required, StringLength(80)]
+        public string Name { get; set; } = "";
+
+        [Range(0, 20)]
+        public int GradeLevel { get; set; }
+    }
+
+    private sealed class SectionForm
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Select a class.")]
+        public int ClassId { get; set; }
+
+        [Required, StringLength(40)]
+        public string Name { get; set; } = "";
+
+        [Range(1, 500)]
+        public int Capacity { get; set; } = 30;
+    }
+}

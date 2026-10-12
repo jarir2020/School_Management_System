@@ -1,0 +1,63 @@
+﻿@page "/"
+
+@attribute [Authorize]
+
+<PageTitle>School administration</PageTitle>
+<h1>School administration</h1>
+
+<AuthorizeView Roles="@SchoolRoles.SuperAdmin">
+    <Authorized>
+        @if (_isLoading)
+        {
+            <p>Loading school information…</p>
+        }
+        else
+        {
+            <p class="lead">Welcome to @_schoolName.</p>
+            <div class="row g-3 mt-1">
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card h-100"><div class="card-body">
+                        <h2 class="h6">Academic years</h2><p class="display-6 mb-0">@_academicYearCount</p>
+                    </div></div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card h-100"><div class="card-body">
+                        <h2 class="h6">Classes</h2><p class="display-6 mb-0">@_classCount</p>
+                    </div></div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card h-100"><div class="card-body">
+                        <h2 class="h6">Sections</h2><p class="display-6 mb-0">@_sectionCount</p>
+                    </div></div>
+                </div>
+            </div>
+            <p class="mt-4">Use the administration links to finish school setup and create staff accounts.</p>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Your account is signed in. Phase 1 has not added a dashboard for this role yet.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Inject] private ISchoolSetupService SchoolSetup { get; set; } = default!;
+
+    private string _schoolName = "your school";
+    private int _academicYearCount;
+    private int _classCount;
+    private int _sectionCount;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await SchoolSetup.GetSchoolProfileAsync();
+        var years = await SchoolSetup.GetAcademicYearsAsync();
+        var classes = await SchoolSetup.GetClassesAsync();
+
+        _schoolName = string.IsNullOrWhiteSpace(profile.Name) ? "your school" : profile.Name;
+        _academicYearCount = years.Count;
+        _classCount = classes.Count;
+        _sectionCount = classes.Sum(schoolClass => schoolClass.Sections.Count);
+        _isLoading = false;
+    }
+}

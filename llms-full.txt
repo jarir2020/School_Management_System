@@ -6,13 +6,15 @@ Build a realistic school administration and fee management application while lea
 
 ## Current state
 
-This repository currently contains planning and project guidance only. The application solution and source code have not been scaffolded. Do not claim that any planned workflow is implemented.
+Phase 1 implementation is in place: Identity sign-in, role-protected administration pages for school profile, academic years, classes and sections, Super Admin user management, and the initial MySQL migration. The solution builds successfully. Database CRUD has not yet been run because no MySQL server was available in the implementation environment. Do not claim later roadmap workflows are complete until their implementation is present and reviewed.
 
 ## Architecture
 
-- C# with ASP.NET Core and a Blazor Web App using Interactive Server rendering initially
-- MySQL with Entity Framework Core and the Pomelo provider
+- C# on .NET 9 with ASP.NET Core and a Blazor Web App using Interactive Server rendering initially
+- MySQL 8.4 with Entity Framework Core 9 and the Pomelo 9 provider
 - ASP.NET Core Identity, role-based access, and policy-based authorization
+- Four-project modular monolith: Core, Application, Infrastructure, and Blazor Web
+- Initial data seeding for six roles and an optional Super Admin configured through User Secrets
 - A modular monolith with logical modules for school setup, admissions, academics, finance, and communication
 - xUnit, integration tests, and browser-based end-to-end testing as the project develops
 
