@@ -22,6 +22,10 @@
 - Use database constraints and transactions for uniqueness and multi-step workflows.
 - Preserve approval and audit history. Do not silently overwrite published results or verified payments.
 
+## Local database troubleshooting
+
+- If the configured local MySQL port fails, try ports within six below and above it before concluding that the service is unavailable. For a configured port of 3306, probe 3300 through 3312 and record the working port only in local configuration.
+
 ## Keep project documentation current
 
 - Update `README.md` when setup, run, or phase status changes.

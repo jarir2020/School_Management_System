@@ -4,7 +4,7 @@ A learning-focused school administration and fee management platform built with 
 
 ## Project status
 
-Phases 1–7 are implemented in source. Phase 7 adds grade-calculation unit tests, SQLite-backed workflow tests for admissions, teacher marks, and verified/underpaid payments, a NuGet vulnerability audit, MySQL migration and production-startup checks in CI, production health endpoints, container configuration, an explicit migration command, and a private MySQL backup script. All 10 local unit and workflow tests passed; no vulnerable packages were reported. All migrations also applied to a disposable MySQL 8.4 database, and the Production health smoke check returned `ready` and `live`. All six migrations have since been applied to the local `school_management` database; its migration history and 49 tables were verified. The Phase 2–7 browser workflows still need manual walkthroughs. SSLCOMMERZ checkout/refunds need merchant credentials and a public HTTPS callback host. SMTP delivery needs local SMTP configuration. No production deployment has been performed.
+Phases 1–7 are implemented in source. Phase 7 adds grade-calculation unit tests, SQLite-backed workflow tests for admissions, teacher marks, and verified/underpaid payments, a NuGet vulnerability audit, MySQL migration and production-startup checks in CI, production health endpoints, container configuration, an explicit migration command, and a private MySQL backup script. All 10 local unit and workflow tests passed; no vulnerable packages were reported. All migrations also applied to a disposable MySQL 8.4 database, and the Production health smoke check returned `ready` and `live`. All six migrations have since been applied to the local `school_management` database; its migration history and 49 tables were verified. The local database also passed a Production health smoke check, and a backup restored successfully into a disposable database. The Phase 2–7 browser workflows still need manual walkthroughs. SSLCOMMERZ checkout/refunds need merchant credentials and a public HTTPS callback host. SMTP delivery needs local SMTP configuration. No production deployment has been performed.
 
 ## Technology
 
@@ -34,7 +34,7 @@ The project plan defines seven phases: foundation; admissions and students; teac
 Install the .NET 9 SDK and MySQL 8.4. Create a local MySQL database and a database user for the application. Store the connection string and bootstrap administrator details with .NET User Secrets:
 
 ```sh
-dotnet user-secrets set "ConnectionStrings:SchoolManagement" "Server=localhost;Port=3306;Database=school_management;User ID=school_app;Password=<local-secret>" --project src/SchoolManagement.Web
+dotnet user-secrets set "ConnectionStrings:SchoolManagement" "Server=localhost;Port=3307;Database=school_management;User ID=school_app;Password=<local-secret>" --project src/SchoolManagement.Web
 dotnet user-secrets set "SeedAdmin:Email" "admin@example.com" --project src/SchoolManagement.Web
 dotnet user-secrets set "SeedAdmin:Password" "<choose-a-strong-secret>" --project src/SchoolManagement.Web
 dotnet user-secrets set "SeedAdmin:FullName" "School Administrator" --project src/SchoolManagement.Web

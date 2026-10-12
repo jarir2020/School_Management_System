@@ -21,6 +21,8 @@ dotnet test SchoolManagement.sln --configuration Release
 
 The test project uses xUnit v3's Microsoft Testing Platform runner. A local restore needs access to NuGet. CI uses a disposable database and disposable test credentials; do not copy its connection string into a real environment.
 
+`global.json` selects Microsoft Testing Platform for the .NET 10 SDK. With .NET 10, use `dotnet test --solution SchoolManagement.sln --configuration Release`; if the machine has only the .NET 10 runtime installed for these .NET 9 targets, prefix the command with `DOTNET_ROLL_FORWARD=Major`. The documented `dotnet test SchoolManagement.sln` form is for the .NET 9 SDK. See [Microsoft's test runner guidance](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test).
+
 ## 2. Production configuration
 
 The application intentionally does not run migrations automatically outside Development. In Production it requires:
@@ -133,4 +135,4 @@ Use synthetic records and a non-production database. Record pass/fail and any de
 
 ## 7. Current completion boundary
 
-The repository includes CI, deployment files, migration and backup helpers, and automated service-level tests. The 10 local unit and workflow tests passed after restoring packages, and the NuGet audit reported no vulnerable packages. A disposable MySQL 8.4 database accepted the full migration chain, and the Production smoke check returned `ready` and `live`. The hosted GitHub Actions run has not been verified after push. All six migrations are applied to the local `school_management` database. Browser walkthroughs, backup restoration, and a live Linux/cloud deployment must be verified in their target environments before claiming production readiness.
+The repository includes CI, deployment files, migration and backup helpers, and automated service-level tests. The 10 local unit and workflow tests passed with the .NET 10 MTP runner, and the NuGet audit reported no vulnerable packages. A disposable MySQL 8.4 database accepted the full migration chain. The local `school_management` database has all six migrations applied; the Production health smoke check returned `ready` and `live`. The private backup passed gzip validation and restored to a disposable database with all six migrations and 49 tables verified; that restore database and temporary backup were removed. The hosted GitHub Actions run has not been verified after push. Browser walkthroughs and a live Linux/cloud deployment must be verified in their target environments before claiming production readiness.
