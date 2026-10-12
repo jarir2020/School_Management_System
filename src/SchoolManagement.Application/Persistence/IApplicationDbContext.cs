@@ -36,6 +36,14 @@ public interface IApplicationDbContext : IAsyncDisposable
     DbSet<ResultApproval> ResultApprovals { get; }
     DbSet<ResultRevision> ResultRevisions { get; }
     DbSet<GradeBand> GradeBands { get; }
+    DbSet<FeeStructure> FeeStructures { get; }
+    DbSet<StudentFeeAssignment> StudentFeeAssignments { get; }
+    DbSet<FeeDiscountRequest> FeeDiscountRequests { get; }
+    DbSet<FeeInvoice> FeeInvoices { get; }
+    DbSet<Payment> Payments { get; }
+    DbSet<PaymentAllocation> PaymentAllocations { get; }
+    DbSet<PaymentReceipt> PaymentReceipts { get; }
+    DbSet<RefundRequest> RefundRequests { get; }
 
     Task<IDbContextTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default);
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

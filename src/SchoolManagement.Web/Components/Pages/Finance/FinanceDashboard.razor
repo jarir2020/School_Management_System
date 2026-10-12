@@ -1,0 +1,327 @@
+@page "/finance"
+@attribute [Authorize(Roles = SchoolRoles.Accountant + "," + SchoolRoles.SuperAdmin)]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Finance
+@using SchoolManagement.Core.Enums
+@inject IFinanceService Finance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Fees and finance</PageTitle>
+<h1>Fees and finance</h1>
+<p>Configure class fees, assign them to current enrollments, issue immutable invoices, and record collections.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+@if (_dashboard is null)
+{
+    <p>Loading finance records…</p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><p class="text-body-secondary mb-1">Invoiced</p><strong>@Money(_dashboard.Report.TotalInvoiced)</strong></div></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><p class="text-body-secondary mb-1">Outstanding</p><strong>@Money(_dashboard.Report.TotalOutstanding)</strong></div></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><p class="text-body-secondary mb-1">Overdue</p><strong>@Money(_dashboard.Report.TotalOverdue)</strong></div></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body"><p class="text-body-secondary mb-1">Collected this month</p><strong>@Money(_dashboard.Report.CurrentMonthCollection)</strong></div></div></div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <a class="btn btn-outline-primary" href="/finance/discounts">Discount requests (@_dashboard.PendingDiscountCount pending)</a>
+        <a class="btn btn-outline-primary" href="/finance/refunds">Refund requests (@_dashboard.PendingRefundCount pending)</a>
+        <span class="align-self-center text-body-secondary">Net outstanding invoices: @_dashboard.Report.OpenInvoiceCount · overdue: @_dashboard.Report.OverdueInvoiceCount</span>
+    </div>
+
+    @if (_dashboard.GatewayPaymentsNeedingReview.Count > 0)
+    {
+        <section class="card border-warning mb-4"><div class="card-body">
+            <h2 class="h5">Online payments needing reconciliation</h2>
+            <p class="text-body-secondary">The gateway confirmed a transaction that did not match the expected risk, amount, currency, or current invoice balance. These amounts are not applied to invoices.</p>
+            <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Invoice</th><th>Student</th><th>Expected</th><th>Received</th><th>Reason</th><th></th></tr></thead><tbody>
+                @foreach (var payment in _dashboard.GatewayPaymentsNeedingReview)
+                {
+                    <tr><td>@payment.InvoiceNumber</td><td>@payment.StudentName</td><td>@Money(payment.ExpectedAmount)</td><td>@(payment.ReceivedAmount.HasValue ? Money(payment.ReceivedAmount.Value) : "—") @payment.Currency</td><td>@payment.Reason</td><td><a class="btn btn-sm btn-outline-danger" href="/finance/refunds">Review refund</a></td></tr>
+                }
+            </tbody></table></div>
+        </div></section>
+    }
+
+    @if (_dashboard.OverdueReminders.Count > 0)
+    {
+        <section class="card border-danger mb-4"><div class="card-body">
+            <h2 class="h5">Overdue reminders (@_dashboard.OverdueReminders.Count)</h2>
+            <p class="text-body-secondary">Prepare a reminder using the guardian contact recorded for each linked student. The school's mail application opens with a draft; staff sends it after review.</p>
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Invoice / student</th><th>Due</th><th>Balance</th><th>Guardian contact</th></tr></thead><tbody>
+                @foreach (var overdue in _dashboard.OverdueReminders)
+                {
+                    <tr><td><a href="@($"/finance#invoice-{overdue.InvoiceId}")">@overdue.InvoiceNumber</a><small class="d-block text-body-secondary">@overdue.StudentName (@overdue.StudentNumber) · @overdue.FeeName</small></td><td>@overdue.DueDate:dd MMM yyyy</td><td>@Money(overdue.Balance)</td><td>
+                        @if (overdue.Contacts.Count == 0)
+                        {
+                            <span class="text-body-secondary">No guardian record linked</span>
+                        }
+                        else
+                        {
+                            @foreach (var contact in overdue.Contacts)
+                            {
+                                <div>@contact.Name
+                                    @if (!string.IsNullOrWhiteSpace(contact.Email)) { <a class="btn btn-sm btn-outline-primary ms-1" href="@ReminderEmailLink(overdue, contact)">Draft email</a> }
+                                    @if (!string.IsNullOrWhiteSpace(contact.Phone)) { <a class="btn btn-sm btn-outline-secondary ms-1" href="@($"tel:{Uri.EscapeDataString(contact.Phone)}")">Call</a> }
+                                    @if (string.IsNullOrWhiteSpace(contact.Email) && string.IsNullOrWhiteSpace(contact.Phone)) { <small class="text-body-secondary">No contact details</small> }
+                                </div>
+                            }
+                        }
+                    </td></tr>
+                }
+            </tbody></table></div>
+        </div></section>
+    }
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-5">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">Create class fee</h2>
+                <EditForm Model="_feeForm" OnValidSubmit="CreateFeeStructureAsync" FormName="create-fee-structure">
+                    <DataAnnotationsValidator />
+                    <div class="mb-3"><label class="form-label" for="fee-year">Academic year</label><InputSelect id="fee-year" class="form-select" @bind-Value="_feeForm.AcademicYearId"><option value="0">Select a year</option>@foreach (var year in _dashboard.Setup.AcademicYears) { <option value="@year.Id">@year.Name</option> }</InputSelect><ValidationMessage For="() => _feeForm.AcademicYearId" class="text-danger" /></div>
+                    <div class="mb-3"><label class="form-label" for="fee-class">Class</label><InputSelect id="fee-class" class="form-select" @bind-Value="_feeForm.SchoolClassId"><option value="0">Select a class</option>@foreach (var schoolClass in _dashboard.Setup.Classes) { <option value="@schoolClass.Id">@schoolClass.Name</option> }</InputSelect><ValidationMessage For="() => _feeForm.SchoolClassId" class="text-danger" /></div>
+                    <div class="mb-3"><label class="form-label" for="fee-name">Fee name</label><InputText id="fee-name" class="form-control" @bind-Value="_feeForm.Name" placeholder="For example: Term 1 tuition" /><ValidationMessage For="() => _feeForm.Name" class="text-danger" /></div>
+                    <div class="row g-3">
+                        <div class="col-sm-6"><label class="form-label" for="fee-category">Category</label><InputSelect id="fee-category" class="form-select" @bind-Value="_feeForm.Category">@foreach (var category in Enum.GetValues<FeeCategory>()) { <option value="@category">@category</option> }</InputSelect></div>
+                        <div class="col-sm-6"><label class="form-label" for="fee-amount">Amount (BDT)</label><InputNumber id="fee-amount" class="form-control" step="0.01" min="0.01" @bind-Value="_feeForm.Amount" /><ValidationMessage For="() => _feeForm.Amount" class="text-danger" /></div>
+                        <div class="col-12"><label class="form-label" for="fee-due">Due date</label><InputDate id="fee-due" class="form-control" @bind-Value="_feeForm.DueDate" /></div>
+                    </div>
+                    <button class="btn btn-primary mt-3" type="submit">Create fee structure</button>
+                </EditForm>
+            </div></section>
+        </div>
+        <div class="col-lg-7">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">Fee structures</h2>
+                @if (_dashboard.Setup.FeeStructures.Count == 0)
+                {
+                    <p class="text-body-secondary mb-0">No fees have been configured.</p>
+                }
+                else
+                {
+                    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Year / class</th><th>Fee</th><th>Amount</th><th>Assignments</th><th>Actions</th></tr></thead><tbody>
+                        @foreach (var structure in _dashboard.Setup.FeeStructures)
+                        {
+                            <tr><td>@structure.AcademicYearName<br />@structure.ClassName</td><td>@structure.Name <small class="d-block text-body-secondary">@structure.Category · due @structure.DueDate:dd MMM yyyy</small></td><td>@Money(structure.Amount)</td><td>@structure.AssignedStudentCount assigned<br /><small>@structure.UninvoicedAssignmentCount not invoiced</small></td><td class="text-nowrap">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => LoadAssignmentsAsync(structure.Id)">Students</button>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => AssignAsync(structure.Id)">Assign current students</button>
+                                <button class="btn btn-sm btn-primary" disabled="@(structure.UninvoicedAssignmentCount == 0)" @onclick="() => IssueInvoicesAsync(structure.Id)">Issue invoices</button>
+                            </td></tr>
+                        }
+                    </tbody></table></div>
+                }
+            </div></section>
+        </div>
+    </div>
+
+    @if (_assignments is not null)
+    {
+        <section class="card mb-4"><div class="card-body">
+            <h2 class="h5">Student assignments</h2>
+            @if (_assignments.Count == 0) { <p class="text-body-secondary">No active enrollments match this fee structure yet.</p> }
+            else
+            {
+                <div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Student</th><th>Class / section</th><th>Assigned fee</th><th>Discount</th><th>Invoice</th><th></th></tr></thead><tbody>
+                    @foreach (var assignment in _assignments)
+                    {
+                        <tr><td>@assignment.StudentName <small class="d-block text-body-secondary">@assignment.StudentNumber</small></td><td>@assignment.ClassName — @assignment.SectionName</td><td>@Money(assignment.Amount)<small class="d-block text-body-secondary">Due @assignment.DueDate:dd MMM yyyy</small></td><td>@Money(assignment.ApprovedDiscountAmount) @if (assignment.PendingDiscountCount > 0) { <span class="badge text-bg-warning">Pending review</span> }</td><td>@(string.IsNullOrWhiteSpace(assignment.InvoiceNumber) ? "Not issued" : assignment.InvoiceNumber)</td><td>
+                            @if (assignment.InvoiceId is null && assignment.PendingDiscountCount == 0 && assignment.ApprovedDiscountAmount == 0)
+                            {
+                                <EditForm Model="GetDiscountForm(assignment.Id)" OnValidSubmit="() => RequestDiscountAsync(assignment.Id)" FormName="@($"discount-{assignment.Id}")">
+                                    <DataAnnotationsValidator />
+                                    <div class="d-flex flex-wrap gap-2"><InputNumber class="form-control" style="max-width: 130px" step="0.01" min="0.01" max="@assignment.Amount" @bind-Value="GetDiscountForm(assignment.Id).Amount" /><InputText class="form-control" placeholder="Reason" maxlength="500" @bind-Value="GetDiscountForm(assignment.Id).Reason" /><button class="btn btn-sm btn-outline-warning" type="submit">Request discount</button></div>
+                                </EditForm>
+                            }
+                        </td></tr>
+                    }
+                </tbody></table></div>
+            }
+        </div></section>
+    }
+
+    <section class="card"><div class="card-body">
+        <h2 class="h5">Invoices and collections</h2>
+        @if (_dashboard.Invoices.Count == 0) { <p class="text-body-secondary">No invoices have been issued.</p> }
+        else
+        {
+            <div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Invoice / student</th><th>Fee</th><th>Due</th><th>Amount</th><th>Received</th><th>Refunded</th><th>Balance</th><th>Collection</th></tr></thead><tbody>
+                @foreach (var invoice in _dashboard.Invoices)
+                {
+                    <tr id="invoice-@invoice.Id"><td><strong>@invoice.InvoiceNumber</strong><span class="d-block">@invoice.StudentName (@invoice.StudentNumber)</span><small class="text-body-secondary">@invoice.AcademicYearName · @invoice.ClassName / @invoice.SectionName</small>@if (invoice.Status == FeeInvoiceStatus.Cancelled) { <span class="badge text-bg-secondary ms-1">Cancelled</span> } else if (invoice.IsOverdue) { <span class="badge text-bg-danger ms-1">Overdue</span> }</td><td>@invoice.FeeName<small class="d-block text-body-secondary">@invoice.Category</small></td><td>@invoice.DueDate:dd MMM yyyy</td><td>@Money(invoice.TotalAmount)<small class="d-block text-body-secondary">Gross @Money(invoice.GrossAmount) · discount @Money(invoice.DiscountAmount)</small></td><td>@Money(invoice.AmountReceived)</td><td>@Money(invoice.AmountRefunded)</td><td><strong>@Money(invoice.Balance)</strong></td><td>
+                        @if (invoice.Balance > 0 && invoice.Status == FeeInvoiceStatus.Issued)
+                        {
+                            <details><summary>Record cash / bank payment</summary><EditForm Model="GetPaymentForm(invoice.Id)" OnValidSubmit="() => RecordPaymentAsync(invoice.Id)" FormName="@($"payment-{invoice.Id}")">
+                                <DataAnnotationsValidator />
+                                <InputNumber class="form-control form-control-sm mb-1" step="0.01" min="0.01" max="@invoice.Balance" @bind-Value="GetPaymentForm(invoice.Id).Amount" />
+                                <InputSelect class="form-select form-select-sm mb-1" @bind-Value="GetPaymentForm(invoice.Id).Method"><option value="@PaymentMethod.Cash">Cash</option><option value="@PaymentMethod.BankTransfer">Bank transfer</option></InputSelect>
+                                <InputText class="form-control form-control-sm mb-1" placeholder="Bank reference (required for transfer)" maxlength="100" @bind-Value="GetPaymentForm(invoice.Id).Reference" />
+                                <button class="btn btn-sm btn-primary" type="submit">Record payment</button>
+                            </EditForm></details>
+                        }
+                        @if (invoice.Payments.Count > 0)
+                        {
+                            <details class="mt-2"><summary>Payment history (@invoice.Payments.Count)</summary><ul class="list-unstyled mt-2 mb-0">
+                                @foreach (var payment in invoice.Payments)
+                                {
+                                    <li class="border-top py-2"><strong>@Money(payment.Amount)</strong> · @payment.Method · @payment.Status <small class="d-block">@payment.PaidAtUtc?.ToString("dd MMM yyyy HH:mm 'UTC'") @payment.Reference @payment.GatewayTransactionId</small>
+                                        @if (!string.IsNullOrWhiteSpace(payment.ReceiptNumber)) { <a href="@($"/finance/receipts/{payment.Id}")">Receipt @payment.ReceiptNumber</a> }
+                                        @if (payment.Status is PaymentStatus.Succeeded or PaymentStatus.ReviewRequired)
+                                        {
+                                            <EditForm Model="GetRefundForm(payment.Id)" OnValidSubmit="() => RequestRefundAsync(payment.Id)" FormName="@($"refund-{payment.Id}")">
+                                                <div class="d-flex flex-wrap gap-2 mt-1"><InputNumber class="form-control form-control-sm" style="max-width: 120px" step="0.01" min="0.01" max="@payment.Amount" @bind-Value="GetRefundForm(payment.Id).Amount" /><InputText class="form-control form-control-sm" placeholder="Refund reason" maxlength="500" @bind-Value="GetRefundForm(payment.Id).Reason" /><button class="btn btn-sm btn-outline-danger" type="submit">Request refund</button></div>
+                                            </EditForm>
+                                        }
+                                    </li>
+                                }
+                            </ul></details>
+                        }
+                    </td></tr>
+                }
+            </tbody></table></div>
+        }
+    </div></section>
+}
+
+@code {
+    private string _actorUserId = "";
+    private SchoolManagement.Application.Finance.FinanceDashboard? _dashboard;
+    private IReadOnlyList<FeeAssignmentSummary>? _assignments;
+    private readonly Dictionary<int, DiscountForm> _discountForms = [];
+    private readonly Dictionary<int, PaymentForm> _paymentForms = [];
+    private readonly Dictionary<int, RefundForm> _refundForms = [];
+    private readonly FeeStructureForm _feeForm = new();
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _dashboard = await Finance.GetDashboardAsync(_actorUserId);
+            foreach (var invoice in _dashboard.Invoices) _paymentForms.TryAdd(invoice.Id, new PaymentForm());
+            foreach (var payment in _dashboard.Invoices.SelectMany(invoice => invoice.Payments))
+                _refundForms.TryAdd(payment.Id, new RefundForm { Amount = payment.Amount });
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        {
+            SetMessage(exception.Message, true);
+        }
+    }
+
+    private async Task CreateFeeStructureAsync() => await RunAsync(async () =>
+    {
+        await Finance.CreateFeeStructureAsync(_actorUserId, new FeeStructureInput(
+            _feeForm.AcademicYearId, _feeForm.SchoolClassId, _feeForm.Category, _feeForm.Name,
+            _feeForm.Amount, DateOnly.FromDateTime(_feeForm.DueDate)));
+        _feeForm.Name = "";
+        SetMessage("Fee structure created. Assign it to the current enrolled students next.");
+        await LoadAsync();
+    });
+
+    private async Task AssignAsync(int structureId) => await RunAsync(async () =>
+    {
+        var count = await Finance.AssignFeeStructureAsync(_actorUserId, structureId);
+        SetMessage($"Assigned this fee to {count} new active enrollment(s).");
+        await LoadAsync();
+        await LoadAssignmentsAsync(structureId);
+    });
+
+    private async Task IssueInvoicesAsync(int structureId) => await RunAsync(async () =>
+    {
+        var count = await Finance.IssueInvoicesAsync(_actorUserId, structureId);
+        SetMessage($"Issued {count} invoice(s). Assignments with pending discount reviews were skipped.");
+        await LoadAsync();
+        await LoadAssignmentsAsync(structureId);
+    });
+
+    private async Task LoadAssignmentsAsync(int structureId)
+    {
+        _selectedStructureId = structureId;
+        await RunAsync(async () =>
+        {
+            _assignments = await Finance.GetAssignmentsAsync(_actorUserId, structureId);
+        });
+    }
+
+    private async Task RequestDiscountAsync(int assignmentId) => await RunAsync(async () =>
+    {
+        var form = GetDiscountForm(assignmentId);
+        await Finance.RequestDiscountAsync(_actorUserId, new DiscountRequestInput(assignmentId, form.Amount, form.Reason));
+        form.Reason = "";
+        SetMessage("Discount sent for Principal or Super Admin review.");
+        await LoadAsync();
+        if (_assignments is { Count: > 0 }) await LoadAssignmentsAsync(_selectedStructureId);
+    });
+
+    private int _selectedStructureId;
+
+    private async Task RecordPaymentAsync(int invoiceId) => await RunAsync(async () =>
+    {
+        var form = GetPaymentForm(invoiceId);
+        await Finance.RecordManualPaymentAsync(_actorUserId, new ManualPaymentInput(invoiceId, form.Amount, form.Method, form.Reference));
+        form.Reference = "";
+        SetMessage("Payment recorded and receipt issued.");
+        await LoadAsync();
+    });
+
+    private async Task RequestRefundAsync(int paymentId) => await RunAsync(async () =>
+    {
+        var form = GetRefundForm(paymentId);
+        await Finance.RequestRefundAsync(_actorUserId, new RefundRequestInput(paymentId, form.Amount, form.Reason));
+        form.Reason = "";
+        SetMessage("Refund request sent for separate approval.");
+        await LoadAsync();
+    });
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException or HttpRequestException or TaskCanceledException)
+        {
+            SetMessage(exception.Message, true);
+        }
+    }
+
+    private DiscountForm GetDiscountForm(int assignmentId) => _discountForms.GetValueOrDefault(assignmentId) ?? Add(_discountForms, assignmentId, new DiscountForm());
+    private PaymentForm GetPaymentForm(int invoiceId) => _paymentForms.GetValueOrDefault(invoiceId) ?? Add(_paymentForms, invoiceId, new PaymentForm());
+    private RefundForm GetRefundForm(int paymentId) => _refundForms.GetValueOrDefault(paymentId) ?? Add(_refundForms, paymentId, new RefundForm());
+
+    private static T Add<T>(Dictionary<int, T> forms, int id, T form) { forms[id] = form; return form; }
+    private void SetMessage(string message, bool error = false) { _message = message; _isError = error; }
+    private static string Money(decimal amount) => $"{amount:N2} BDT";
+    private static string ReminderEmailLink(OverdueReminderSummary invoice, OverdueReminderContact contact)
+    {
+        var subject = $"Overdue school fee reminder: {invoice.InvoiceNumber}";
+        var body = $"Dear {contact.Name},\n\nOur records show invoice {invoice.InvoiceNumber} for {invoice.StudentName} ({invoice.FeeName}) is overdue since {invoice.DueDate:dd MMM yyyy}. The outstanding balance is {invoice.Balance:N2} BDT. Please pay through your parent account or contact the school office. If you have already paid, please disregard this reminder.\n\nSchool office";
+        return $"mailto:{Uri.EscapeDataString(contact.Email)}?subject={Uri.EscapeDataString(subject)}&body={Uri.EscapeDataString(body)}";
+    }
+
+    private sealed class FeeStructureForm
+    {
+        [Range(1, int.MaxValue)] public int AcademicYearId { get; set; }
+        [Range(1, int.MaxValue)] public int SchoolClassId { get; set; }
+        [Required, StringLength(100)] public string Name { get; set; } = "";
+        public FeeCategory Category { get; set; } = FeeCategory.Tuition;
+        [Range(typeof(decimal), "0.01", "9999999999.99")] public decimal Amount { get; set; }
+        public DateTime DueDate { get; set; } = DateTime.Today;
+    }
+
+    private sealed class DiscountForm { [Range(typeof(decimal), "0.01", "9999999999.99")] public decimal Amount { get; set; } public string Reason { get; set; } = ""; }
+    private sealed class PaymentForm { [Range(typeof(decimal), "0.01", "9999999999.99")] public decimal Amount { get; set; } public PaymentMethod Method { get; set; } = PaymentMethod.Cash; public string Reference { get; set; } = ""; }
+    private sealed class RefundForm { [Range(typeof(decimal), "0.01", "9999999999.99")] public decimal Amount { get; set; } public string Reason { get; set; } = ""; }
+}

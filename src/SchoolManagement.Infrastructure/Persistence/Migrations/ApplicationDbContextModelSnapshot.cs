@@ -611,6 +611,186 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.ToTable("Examinations", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeDiscountRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTimeOffset>("RequestedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("ReviewRemarks")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ReviewedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("StudentFeeAssignmentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("StudentFeeAssignmentId", "Status");
+
+                    b.ToTable("FeeDiscountRequests", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeInvoice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FeeName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTimeOffset>("IssuedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("StudentFeeAssignmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("StudentFeeAssignmentId")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId", "DueDate", "Status");
+
+                    b.ToTable("FeeInvoices", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeStructure", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AcademicYearId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("SchoolClassId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("SchoolClassId");
+
+                    b.HasIndex("AcademicYearId", "SchoolClassId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("FeeStructures", (string)null);
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.GradeBand", b =>
                 {
                     b.Property<int>("Id")
@@ -715,6 +895,243 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("GuardianAccountLinks", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Payment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<int>("FeeInvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GatewayBankTransactionId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("GatewayName")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<decimal?>("GatewayReceivedAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("GatewayRiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("varchar(4)");
+
+                    b.Property<string>("GatewaySessionKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("GatewayTransactionId")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("GatewayValidationId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTimeOffset?>("PaidAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("GatewayTransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("GatewayValidationId")
+                        .IsUnique();
+
+                    b.HasIndex("FeeInvoiceId", "Status");
+
+                    b.HasIndex("Method", "Reference")
+                        .IsUnique();
+
+                    b.ToTable("Payments", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.PaymentAllocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("AllocatedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("FeeInvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeeInvoiceId");
+
+                    b.HasIndex("PaymentId")
+                        .IsUnique();
+
+                    b.ToTable("PaymentAllocations", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.PaymentReceipt", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("IssuedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReceiptNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentId")
+                        .IsUnique();
+
+                    b.HasIndex("ReceiptNumber")
+                        .IsUnique();
+
+                    b.ToTable("PaymentReceipts", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.RefundRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("GatewayRefundReference")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("GatewayRefundStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("GatewayRefundTransactionId")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("ManualRefundReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTimeOffset>("RequestedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("ReviewRemarks")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ReviewedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatewayRefundTransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("PaymentId", "Status");
+
+                    b.ToTable("RefundRequests", (string)null);
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.ResultApproval", b =>
@@ -942,6 +1359,47 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "FullName");
 
                     b.ToTable("Students", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.StudentFeeAssignment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTimeOffset>("AssignedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("AssignedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("EnrollmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FeeStructureId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("EnrollmentId");
+
+                    b.HasIndex("FeeStructureId", "EnrollmentId")
+                        .IsUnique();
+
+                    b.ToTable("StudentFeeAssignments", (string)null);
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.StudentGuardian", b =>
@@ -1485,6 +1943,72 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("Term");
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeDiscountRequest", b =>
+                {
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SchoolManagement.Core.Entities.StudentFeeAssignment", "StudentFeeAssignment")
+                        .WithMany("DiscountRequests")
+                        .HasForeignKey("StudentFeeAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("StudentFeeAssignment");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeInvoice", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.StudentFeeAssignment", "StudentFeeAssignment")
+                        .WithOne("Invoice")
+                        .HasForeignKey("SchoolManagement.Core.Entities.FeeInvoice", "StudentFeeAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+
+                    b.Navigation("StudentFeeAssignment");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeStructure", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.SchoolClass", "SchoolClass")
+                        .WithMany()
+                        .HasForeignKey("SchoolClassId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicYear");
+
+                    b.Navigation("SchoolClass");
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.GradeBand", b =>
                 {
                     b.HasOne("SchoolManagement.Core.Entities.AcademicYear", "AcademicYear")
@@ -1517,6 +2041,75 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Guardian");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Payment", b =>
+                {
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.FeeInvoice", "FeeInvoice")
+                        .WithMany("Payments")
+                        .HasForeignKey("FeeInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FeeInvoice");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.PaymentAllocation", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.FeeInvoice", "FeeInvoice")
+                        .WithMany("Allocations")
+                        .HasForeignKey("FeeInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.Payment", "Payment")
+                        .WithMany("Allocations")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FeeInvoice");
+
+                    b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.PaymentReceipt", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.Payment", "Payment")
+                        .WithOne("Receipt")
+                        .HasForeignKey("SchoolManagement.Core.Entities.PaymentReceipt", "PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.RefundRequest", b =>
+                {
+                    b.HasOne("SchoolManagement.Core.Entities.Payment", "Payment")
+                        .WithMany("RefundRequests")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Payment");
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.ResultApproval", b =>
@@ -1573,6 +2166,31 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("AdmissionApplication");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.StudentFeeAssignment", b =>
+                {
+                    b.HasOne("SchoolManagement.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.Enrollment", "Enrollment")
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SchoolManagement.Core.Entities.FeeStructure", "FeeStructure")
+                        .WithMany("Assignments")
+                        .HasForeignKey("FeeStructureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Enrollment");
+
+                    b.Navigation("FeeStructure");
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.StudentGuardian", b =>
@@ -1726,9 +2344,30 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("Subjects");
                 });
 
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeInvoice", b =>
+                {
+                    b.Navigation("Allocations");
+
+                    b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.FeeStructure", b =>
+                {
+                    b.Navigation("Assignments");
+                });
+
             modelBuilder.Entity("SchoolManagement.Core.Entities.Guardian", b =>
                 {
                     b.Navigation("Students");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.Payment", b =>
+                {
+                    b.Navigation("Allocations");
+
+                    b.Navigation("Receipt");
+
+                    b.Navigation("RefundRequests");
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.SchoolClass", b =>
@@ -1743,6 +2382,13 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     b.Navigation("Guardians");
 
                     b.Navigation("StatusHistory");
+                });
+
+            modelBuilder.Entity("SchoolManagement.Core.Entities.StudentFeeAssignment", b =>
+                {
+                    b.Navigation("DiscountRequests");
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("SchoolManagement.Core.Entities.StudentMark", b =>

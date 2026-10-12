@@ -8,6 +8,7 @@ using SchoolManagement.Infrastructure.Identity;
 using SchoolManagement.Infrastructure.Persistence;
 using SchoolManagement.Infrastructure.Seeding;
 using SchoolManagement.Application.Admissions;
+using SchoolManagement.Application.Finance;
 using SchoolManagement.Core.Authorization;
 using SchoolManagement.Core.Enums;
 
@@ -91,6 +92,61 @@ app.MapGet("/admin/students/export.csv", async (
         return Results.File(export.Content, export.ContentType, export.FileName);
     })
     .RequireAuthorization(admissionStaffPolicy);
+
+app.MapPost("/payments/sslcommerz/success", async (
+        HttpRequest request,
+        IFinanceService finance,
+        CancellationToken cancellationToken) =>
+    {
+        try
+        {
+            var form = await request.ReadFormAsync(cancellationToken);
+            var outcome = await finance.ProcessGatewayPaymentAsync(new GatewayCallbackValues(
+                form["tran_id"].ToString(),
+                form["val_id"].ToString()), cancellationToken);
+            var result = outcome switch
+            {
+                GatewayPaymentOutcome.Processed or GatewayPaymentOutcome.AlreadyProcessed => "processed",
+                GatewayPaymentOutcome.ReviewRequired => "review",
+                _ => "pending"
+            };
+            return Results.Redirect($"/parent/fees?payment={result}");
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException or InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            // Do not expose provider response details or transaction credentials on a public callback.
+            return Results.Redirect("/parent/fees?payment=pending");
+        }
+    })
+    .AllowAnonymous();
+
+app.MapPost("/payments/sslcommerz/ipn", async (
+        HttpRequest request,
+        IFinanceService finance,
+        CancellationToken cancellationToken) =>
+    {
+        try
+        {
+            var form = await request.ReadFormAsync(cancellationToken);
+            var outcome = await finance.ProcessGatewayPaymentAsync(new GatewayCallbackValues(
+                form["tran_id"].ToString(),
+                form["val_id"].ToString()), cancellationToken);
+            return outcome == GatewayPaymentOutcome.Ignored
+                ? Results.BadRequest("Payment validation was not accepted.")
+                : Results.Ok("OK");
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException or InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            return Results.BadRequest("Payment validation could not be completed.");
+        }
+    })
+    .AllowAnonymous();
+
+app.MapPost("/payments/sslcommerz/fail", () => Results.Redirect("/parent/fees?payment=failed"))
+    .AllowAnonymous();
+
+app.MapPost("/payments/sslcommerz/cancel", () => Results.Redirect("/parent/fees?payment=pending"))
+    .AllowAnonymous();
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();

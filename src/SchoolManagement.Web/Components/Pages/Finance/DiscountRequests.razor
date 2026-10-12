@@ -1,0 +1,94 @@
+@page "/finance/discounts"
+@attribute [Authorize(Roles = SchoolRoles.Accountant + "," + SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)]
+@using System.Security.Claims
+@using SchoolManagement.Application.Finance
+@using SchoolManagement.Core.Enums
+@inject IFinanceService Finance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Fee discount requests</PageTitle>
+<h1>Fee discount requests</h1>
+<p>Accountants can submit requests. A Principal or Super Admin must review each request before an invoice is issued.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+@if (_requests is null)
+{
+    <p>Loading discount requests…</p>
+}
+else if (_requests.Count == 0)
+{
+    <div class="alert alert-info">There are no discount requests yet.</div>
+}
+else
+{
+    <div class="table-responsive"><table class="table table-striped align-middle">
+        <thead><tr><th>Student / fee</th><th>Fee / discount</th><th>Reason</th><th>Requested</th><th>Status</th><th>Review</th></tr></thead>
+        <tbody>@foreach (var request in _requests)
+        {
+            <tr>
+                <td>@request.StudentName <small class="d-block text-body-secondary">@request.StudentNumber · @request.FeeName</small></td>
+                <td>@Money(request.FeeAmount)<small class="d-block text-body-secondary">Discount @Money(request.DiscountAmount)</small></td>
+                <td>@request.Reason</td>
+                <td>@request.RequestedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")<small class="d-block text-body-secondary">by @request.RequestedByName</small></td>
+                <td><span class="badge @StatusClass(request.Status)">@request.Status</span>@if (request.ReviewedAtUtc.HasValue) { <small class="d-block text-body-secondary">@request.ReviewedAtUtc.Value.ToString("dd MMM yyyy HH:mm 'UTC'") · @request.ReviewedByName</small> }</td>
+                <td>
+                    @if (request.Status == FeeDiscountStatus.PendingReview && request.CanCurrentUserReview)
+                    {
+                        <textarea class="form-control form-control-sm mb-2" rows="2" maxlength="500" placeholder="Optional approval note; required for rejection" @bind="GetForm(request.Id).Remarks"></textarea>
+                        <div class="d-flex gap-2"><button class="btn btn-sm btn-success" @onclick="() => ReviewAsync(request.Id, true)">Approve</button><button class="btn btn-sm btn-outline-danger" @onclick="() => ReviewAsync(request.Id, false)">Reject</button></div>
+                    }
+                    else if (request.Status == FeeDiscountStatus.PendingReview)
+                    {
+                        <span class="text-body-secondary">Waiting for an eligible reviewer</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(request.ReviewRemarks)) { <small class="d-block mt-1 text-body-secondary">@request.ReviewRemarks</small> }
+                </td>
+            </tr>
+        }</tbody>
+    </table></div>
+}
+
+@code {
+    private string _actorUserId = "";
+    private IReadOnlyList<DiscountRequestSummary>? _requests;
+    private readonly Dictionary<int, ReviewForm> _forms = [];
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _requests = await Finance.GetDiscountRequestsAsync(_actorUserId); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        { _requests = []; SetMessage(exception.Message, true); }
+    }
+
+    private async Task ReviewAsync(int requestId, bool approve)
+    {
+        try
+        {
+            await Finance.ReviewDiscountAsync(_actorUserId, requestId, approve, GetForm(requestId).Remarks);
+            SetMessage(approve ? "Discount approved. It will be included when the invoice is issued." : "Discount request rejected.");
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        { SetMessage(exception.Message, true); }
+    }
+
+    private ReviewForm GetForm(int id) => _forms.GetValueOrDefault(id) ?? Add(id);
+    private ReviewForm Add(int id) { var form = new ReviewForm(); _forms[id] = form; return form; }
+    private void SetMessage(string message, bool error = false) { _message = message; _isError = error; }
+    private static string Money(decimal amount) => $"{amount:N2} BDT";
+    private static string StatusClass(FeeDiscountStatus status) => status switch { FeeDiscountStatus.Approved => "text-bg-success", FeeDiscountStatus.Rejected => "text-bg-secondary", _ => "text-bg-warning" };
+    private sealed class ReviewForm { public string Remarks { get; set; } = ""; }
+}

@@ -36,6 +36,14 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ResultApproval> ResultApprovals => Set<ResultApproval>();
     public DbSet<ResultRevision> ResultRevisions => Set<ResultRevision>();
     public DbSet<GradeBand> GradeBands => Set<GradeBand>();
+    public DbSet<FeeStructure> FeeStructures => Set<FeeStructure>();
+    public DbSet<StudentFeeAssignment> StudentFeeAssignments => Set<StudentFeeAssignment>();
+    public DbSet<FeeDiscountRequest> FeeDiscountRequests => Set<FeeDiscountRequest>();
+    public DbSet<FeeInvoice> FeeInvoices => Set<FeeInvoice>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
+    public DbSet<PaymentReceipt> PaymentReceipts => Set<PaymentReceipt>();
+    public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();
 
     public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
         IsolationLevel isolationLevel,
@@ -516,6 +524,194 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasOne(band => band.AcademicYear)
                 .WithMany()
                 .HasForeignKey(band => band.AcademicYearId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FeeStructure>(entity =>
+        {
+            entity.ToTable("FeeStructures");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Category).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(item => item.Name).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.Amount).HasPrecision(12, 2);
+            entity.Property(item => item.DueDate).HasColumnType("date");
+            entity.Property(item => item.CreatedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(item => new { item.AcademicYearId, item.SchoolClassId, item.Name }).IsUnique();
+            entity.HasOne(item => item.AcademicYear)
+                .WithMany()
+                .HasForeignKey(item => item.AcademicYearId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SchoolClass)
+                .WithMany()
+                .HasForeignKey(item => item.SchoolClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StudentFeeAssignment>(entity =>
+        {
+            entity.ToTable("StudentFeeAssignments");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Amount).HasPrecision(12, 2);
+            entity.Property(item => item.DueDate).HasColumnType("date");
+            entity.Property(item => item.AssignedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(item => new { item.FeeStructureId, item.EnrollmentId }).IsUnique();
+            entity.HasOne(item => item.FeeStructure)
+                .WithMany(structure => structure.Assignments)
+                .HasForeignKey(item => item.FeeStructureId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Enrollment)
+                .WithMany()
+                .HasForeignKey(item => item.EnrollmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.AssignedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FeeDiscountRequest>(entity =>
+        {
+            entity.ToTable("FeeDiscountRequests");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Amount).HasPrecision(12, 2);
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(item => item.RequestedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(item => item.ReviewedByUserId).HasMaxLength(450);
+            entity.Property(item => item.ReviewRemarks).HasMaxLength(500).IsRequired();
+            entity.HasIndex(item => new { item.StudentFeeAssignmentId, item.Status });
+            entity.HasOne(item => item.StudentFeeAssignment)
+                .WithMany(assignment => assignment.DiscountRequests)
+                .HasForeignKey(item => item.StudentFeeAssignmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FeeInvoice>(entity =>
+        {
+            entity.ToTable("FeeInvoices");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.InvoiceNumber).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.FeeName).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.Category).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(item => item.GrossAmount).HasPrecision(12, 2);
+            entity.Property(item => item.DiscountAmount).HasPrecision(12, 2);
+            entity.Property(item => item.TotalAmount).HasPrecision(12, 2);
+            entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.DueDate).HasColumnType("date");
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.HasIndex(item => item.InvoiceNumber).IsUnique();
+            entity.HasIndex(item => new { item.StudentId, item.DueDate, item.Status });
+            entity.HasIndex(item => item.StudentFeeAssignmentId).IsUnique();
+            entity.HasOne(item => item.StudentFeeAssignment)
+                .WithOne(assignment => assignment.Invoice)
+                .HasForeignKey<FeeInvoice>(item => item.StudentFeeAssignmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Student)
+                .WithMany()
+                .HasForeignKey(item => item.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.ToTable("Payments");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Amount).HasPrecision(12, 2);
+            entity.Property(item => item.GatewayReceivedAmount).HasPrecision(12, 2);
+            entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.Method).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(item => item.Reference).HasMaxLength(100);
+            entity.Property(item => item.GatewayName).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.GatewayTransactionId).HasMaxLength(30);
+            entity.Property(item => item.GatewaySessionKey).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.GatewayValidationId).HasMaxLength(50);
+            entity.Property(item => item.GatewayBankTransactionId).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.GatewayRiskLevel).HasMaxLength(4).IsRequired();
+            entity.Property(item => item.CreatedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(item => item.GatewayTransactionId).IsUnique();
+            entity.HasIndex(item => item.GatewayValidationId).IsUnique();
+            entity.HasIndex(item => new { item.Method, item.Reference }).IsUnique();
+            entity.HasIndex(item => new { item.FeeInvoiceId, item.Status });
+            entity.HasOne(item => item.FeeInvoice)
+                .WithMany(invoice => invoice.Payments)
+                .HasForeignKey(item => item.FeeInvoiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PaymentAllocation>(entity =>
+        {
+            entity.ToTable("PaymentAllocations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Amount).HasPrecision(12, 2);
+            entity.HasIndex(item => item.PaymentId).IsUnique();
+            entity.HasIndex(item => item.FeeInvoiceId);
+            entity.HasOne(item => item.Payment)
+                .WithMany(payment => payment.Allocations)
+                .HasForeignKey(item => item.PaymentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.FeeInvoice)
+                .WithMany(invoice => invoice.Allocations)
+                .HasForeignKey(item => item.FeeInvoiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PaymentReceipt>(entity =>
+        {
+            entity.ToTable("PaymentReceipts");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ReceiptNumber).HasMaxLength(40).IsRequired();
+            entity.HasIndex(item => item.ReceiptNumber).IsUnique();
+            entity.HasIndex(item => item.PaymentId).IsUnique();
+            entity.HasOne(item => item.Payment)
+                .WithOne(payment => payment.Receipt)
+                .HasForeignKey<PaymentReceipt>(item => item.PaymentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RefundRequest>(entity =>
+        {
+            entity.ToTable("RefundRequests");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Amount).HasPrecision(12, 2);
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(item => item.RequestedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(item => item.ReviewedByUserId).HasMaxLength(450);
+            entity.Property(item => item.ReviewRemarks).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.GatewayRefundTransactionId).HasMaxLength(30);
+            entity.Property(item => item.GatewayRefundReference).HasMaxLength(50).IsRequired();
+            entity.Property(item => item.GatewayRefundStatus).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.ManualRefundReference).HasMaxLength(100).IsRequired();
+            entity.HasIndex(item => new { item.PaymentId, item.Status });
+            entity.HasIndex(item => item.GatewayRefundTransactionId).IsUnique();
+            entity.HasOne(item => item.Payment)
+                .WithMany(payment => payment.RefundRequests)
+                .HasForeignKey(item => item.PaymentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.ReviewedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

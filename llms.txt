@@ -12,7 +12,7 @@
 
 ## Current status
 
-Phases 1–4 are implemented in source and their migrations are applied to the configured local MySQL database. Phase 2 includes applications, private documents, role-protected review, enrollment, and student directory tools. Phase 3 includes teacher assignments, one-time attendance registers, correction approval, scoped daily/monthly reports, and guardian-linked parent attendance. Phase 4 includes academic terms, exams, teacher-scoped marks, review and publication, configurable grade bands, linked-parent report cards, and reasoned revision history. The solution builds; the Phase 2–4 browser workflows still need manual walkthroughs. Finance, messaging, and deployment work remain planned.
+Phases 1–5 are implemented in source and their migrations are applied to the configured local MySQL database. Phase 2 includes applications, private documents, role-protected review, enrollment, and student directory tools. Phase 3 includes teacher assignments, one-time attendance registers, correction approval, scoped daily/monthly reports, and guardian-linked parent attendance. Phase 4 includes academic terms, exams, teacher-scoped marks, review and publication, configurable grade bands, linked-parent report cards, and reasoned revisions. Phase 5 includes fee assignments, invoice and discount workflows, partial collections, receipts, SSLCOMMERZ sandbox payment/refund integration, overdue reminder drafts, and financial reports. The solution builds; the Phase 2–5 browser workflows still need manual walkthroughs. Sandbox credentials/public callback setup and Phase 6 communications, imports/exports, and deployment remain outstanding.
 
 ## Phase walkthroughs
 
@@ -20,3 +20,4 @@ Phases 1–4 are implemented in source and their migrations are applied to the c
 - [Phase 2 guide](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md)
 - [Phase 3 guide](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md)
 - [Phase 4 guide](guides/PHASE4_EXAMINATIONS_RESULTS_QUICK_GUIDE.md)
+- [Phase 5 guide](guides/PHASE5_FEES_FINANCE_QUICK_GUIDE.md)

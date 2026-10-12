@@ -8,11 +8,13 @@ using SchoolManagement.Application.SchoolSetup;
 using SchoolManagement.Application.UserManagement;
 using SchoolManagement.Application.Attendance;
 using SchoolManagement.Application.Examinations;
+using SchoolManagement.Application.Finance;
 using SchoolManagement.Infrastructure.Identity;
 using SchoolManagement.Infrastructure.Files;
 using SchoolManagement.Infrastructure.Persistence;
 using SchoolManagement.Infrastructure.Seeding;
 using SchoolManagement.Infrastructure.Services;
+using SchoolManagement.Infrastructure.Payments;
 
 namespace SchoolManagement.Infrastructure;
 
@@ -64,6 +66,11 @@ public static class DependencyInjection
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IAttendanceService, AttendanceService>();
         services.AddScoped<IExaminationService, ExaminationService>();
+        services.AddScoped<IFinanceService, FinanceService>();
+        services.Configure<SslCommerzOptions>(configuration.GetSection(SslCommerzOptions.SectionName));
+        // Avoid HttpClientFactory request logging because validator/refund GETs contain merchant credentials in the query string.
+        services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
+        services.AddTransient<ISslCommerzGateway, SslCommerzGateway>();
         services.AddScoped<InitialDataSeeder>();
 
         var privateDocumentRoot = configuration["Storage:PrivateDocumentRoot"]

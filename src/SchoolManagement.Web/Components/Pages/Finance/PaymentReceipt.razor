@@ -1,0 +1,53 @@
+@page "/finance/receipts/{PaymentId:int}"
+@attribute [Authorize(Roles = SchoolRoles.Accountant + "," + SchoolRoles.SuperAdmin + "," + SchoolRoles.ParentStudent)]
+@using System.Security.Claims
+@using SchoolManagement.Application.Finance
+@inject IFinanceService Finance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
+
+<PageTitle>Payment receipt</PageTitle>
+<h1 class="no-print">Payment receipt</h1>
+
+@if (_receipt is null && !_loaded)
+{
+    <p class="no-print">Loading receipt…</p>
+}
+else if (_receipt is null)
+{
+    <div class="alert alert-warning no-print">The receipt is unavailable for this payment. Only verified successful payments have receipts.</div>
+}
+else
+{
+    <article class="card receipt-card"><div class="card-body p-4 p-md-5">
+        <div class="d-flex flex-wrap justify-content-between gap-3 border-bottom pb-3 mb-4"><div><h1 class="h3">Payment receipt</h1><p class="text-body-secondary mb-0">School Management System</p></div><div class="text-end"><strong>@_receipt.ReceiptNumber</strong><span class="d-block text-body-secondary">Issued @_receipt.IssuedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</span></div></div>
+        <dl class="row mb-4"><dt class="col-sm-3">Student</dt><dd class="col-sm-9">@_receipt.StudentName (@_receipt.StudentNumber)</dd><dt class="col-sm-3">Invoice</dt><dd class="col-sm-9">@_receipt.InvoiceNumber · @_receipt.FeeName</dd><dt class="col-sm-3">Academic year</dt><dd class="col-sm-9">@_receipt.AcademicYearName</dd><dt class="col-sm-3">Payment date</dt><dd class="col-sm-9">@_receipt.PaidAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</dd><dt class="col-sm-3">Method</dt><dd class="col-sm-9">@_receipt.Method</dd><dt class="col-sm-3">Reference</dt><dd class="col-sm-9">@_receipt.Reference</dd></dl>
+        <div class="border-top border-bottom py-3 d-flex justify-content-between fs-5"><strong>Amount received</strong><strong>@_receipt.Amount.ToString("N2") @_receipt.Currency</strong></div>
+        <p class="text-body-secondary mt-4 mb-0">This receipt records a successful payment applied to the invoice shown above.</p>
+    </div></article>
+    <button class="btn btn-primary mt-3 no-print" @onclick="PrintAsync">Print receipt</button>
+}
+
+@code {
+    [Parameter] public int PaymentId { get; set; }
+    private ReceiptDetails? _receipt;
+    private bool _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        _receipt = await Finance.GetReceiptAsync(actorUserId, PaymentId);
+        _loaded = true;
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+}
+
+<style>
+        @@media print {
+        .no-print { display: none !important; }
+        .receipt-card { border: 0 !important; box-shadow: none !important; }
+        body { background: white !important; }
+    }
+</style>

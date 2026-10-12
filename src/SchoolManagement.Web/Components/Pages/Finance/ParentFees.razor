@@ -1,0 +1,110 @@
+@page "/parent/fees"
+@attribute [Authorize(Roles = SchoolRoles.ParentStudent)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components
+@using SchoolManagement.Application.Finance
+@using SchoolManagement.Core.Enums
+@inject IFinanceService Finance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Children's fees</PageTitle>
+<h1>Children's fees</h1>
+<p>Invoices and payment history are limited to students linked to your parent account.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-info")" role="status">@_message</div>
+}
+
+@if (_invoices is null)
+{
+    <p>Loading linked children's invoices…</p>
+}
+else if (_invoices.Count == 0)
+{
+    <div class="alert alert-info">No invoices are available for linked children.</div>
+}
+else
+{
+    <div class="d-flex justify-content-end mb-3"><button class="btn btn-outline-secondary" @onclick="LoadAsync">Refresh invoices</button></div>
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6"><div class="card h-100"><div class="card-body"><span class="text-body-secondary">Outstanding</span><strong class="d-block fs-4">@Money(_invoices.Sum(item => item.Balance))</strong></div></div></div>
+        <div class="col-sm-6"><div class="card h-100"><div class="card-body"><span class="text-body-secondary">Overdue</span><strong class="d-block fs-4">@Money(_invoices.Where(item => item.IsOverdue).Sum(item => item.Balance))</strong></div></div></div>
+    </div>
+    <div class="d-grid gap-3">
+        @foreach (var invoice in _invoices)
+        {
+            <section class="card"><div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between gap-3">
+                    <div><h2 class="h5 mb-1">@invoice.StudentName <small class="text-body-secondary">(@invoice.StudentNumber)</small></h2><strong>@invoice.InvoiceNumber</strong> · @invoice.FeeName<p class="text-body-secondary mb-0">@invoice.AcademicYearName · @invoice.ClassName / @invoice.SectionName · due @invoice.DueDate:dd MMM yyyy</p></div>
+                    <div class="text-end">Total <strong class="d-block">@Money(invoice.TotalAmount)</strong><span class="text-body-secondary">Paid @Money(invoice.AmountReceived) · balance </span><strong>@Money(invoice.Balance)</strong>@if (invoice.IsOverdue) { <span class="badge text-bg-danger ms-2">Overdue</span> }</div>
+                </div>
+                @if (invoice.Balance > 0 && invoice.Status == FeeInvoiceStatus.Issued)
+                {
+                    <button class="btn btn-primary mt-3" disabled="@_startingPayment" @onclick="() => StartCheckoutAsync(invoice.Id)">Pay online with SSLCOMMERZ</button>
+                    <small class="d-block text-body-secondary mt-1">Online checkout is available when the school's sandbox credentials and public HTTPS callback URL are configured.</small>
+                }
+                @if (invoice.Payments.Count > 0)
+                {
+                    <details class="mt-3"><summary>Payment history (@invoice.Payments.Count)</summary><div class="table-responsive mt-2"><table class="table table-sm mb-0"><thead><tr><th>Created (UTC)</th><th>Method / reference</th><th>Status</th><th>Amount</th><th>Receipt</th></tr></thead><tbody>
+                        @foreach (var payment in invoice.Payments)
+                        {
+                            <tr><td>@payment.CreatedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")</td><td>@payment.Method @if (!string.IsNullOrWhiteSpace(payment.Reference)) { <span>· @payment.Reference</span> } @if (!string.IsNullOrWhiteSpace(payment.GatewayTransactionId)) { <small class="d-block text-body-secondary">@payment.GatewayTransactionId</small> }</td><td>@payment.Status</td><td>@Money(payment.Amount)</td><td>@if (!string.IsNullOrWhiteSpace(payment.ReceiptNumber)) { <a href="@($"/finance/receipts/{payment.Id}")">@payment.ReceiptNumber</a> } else { <span>—</span> }</td></tr>
+                        }
+                    </tbody></table></div></details>
+                }
+            </div></section>
+        }
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "payment")]
+    public string? PaymentResult { get; set; }
+
+    private string _parentUserId = "";
+    private IReadOnlyList<InvoiceSummary>? _invoices;
+    private string? _message;
+    private bool _isError;
+    private bool _startingPayment;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _parentUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        _message = PaymentResult?.ToLowerInvariant() switch
+        {
+            "processed" => "The gateway payment was verified and recorded. Your updated balance is shown below.",
+            "review" => "The gateway confirmed a payment that needs staff reconciliation. It has not been applied to the invoice yet.",
+            "failed" => "The gateway did not complete checkout. If you see a debit, contact the school office while it is reconciled.",
+            "pending" => "The gateway returned without a confirmed result. Refresh this page after verification completes.",
+            _ => null
+        };
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _invoices = await Finance.GetMyInvoicesAsync(_parentUserId); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        { _invoices = []; SetMessage(exception.Message, true); }
+    }
+
+    private async Task StartCheckoutAsync(int invoiceId)
+    {
+        if (_startingPayment) return;
+        _startingPayment = true;
+        try
+        {
+            var checkout = await Finance.StartOnlinePaymentAsync(_parentUserId, invoiceId);
+            NavigationManager.NavigateTo(checkout.GatewayPageUrl, forceLoad: true);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException or HttpRequestException or TaskCanceledException)
+        { SetMessage(exception.Message, true); }
+        finally { _startingPayment = false; }
+    }
+
+    private void SetMessage(string message, bool error = false) { _message = message; _isError = error; }
+    private static string Money(decimal amount) => $"{amount:N2} BDT";
+}

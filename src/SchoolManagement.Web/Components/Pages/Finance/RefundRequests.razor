@@ -1,0 +1,138 @@
+@page "/finance/refunds"
+@attribute [Authorize(Roles = SchoolRoles.Accountant + "," + SchoolRoles.Principal + "," + SchoolRoles.SuperAdmin)]
+@using System.Security.Claims
+@using SchoolManagement.Application.Finance
+@using SchoolManagement.Core.Enums
+@inject IFinanceService Finance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Refund requests</PageTitle>
+<h1>Refund requests</h1>
+<p>Refunds require separate Principal or Super Admin approval. Approved online transactions can be sent to SSLCOMMERZ and reconciled against the provider status.</p>
+
+@if (!string.IsNullOrWhiteSpace(_message))
+{
+    <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+}
+
+@if (_requests is null)
+{
+    <p>Loading refund requests…</p>
+}
+else if (_requests.Count == 0)
+{
+    <div class="alert alert-info">There are no refund requests yet. Request a refund from the invoice payment history.</div>
+}
+else
+{
+    <div class="table-responsive"><table class="table table-striped align-middle">
+        <thead><tr><th>Invoice / student</th><th>Payment / refund</th><th>Reason</th><th>Request</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>@foreach (var request in _requests)
+        {
+            <tr>
+                <td><a href="/finance#invoice-@request.InvoiceId">@request.InvoiceNumber</a><small class="d-block text-body-secondary">@request.StudentName</small></td>
+                <td>@request.PaymentMethod · @Money(request.PaymentAmount)<small class="d-block text-body-secondary">Refund @Money(request.RefundAmount)</small></td>
+                <td>@request.Reason</td>
+                <td>@request.RequestedAtUtc.ToString("dd MMM yyyy HH:mm 'UTC'")<small class="d-block text-body-secondary">by @request.RequestedByName</small></td>
+                <td><span class="badge @StatusClass(request.Status)">@request.Status</span>
+                    @if (request.ReviewedAtUtc.HasValue) { <small class="d-block text-body-secondary">@request.ReviewedAtUtc.Value.ToString("dd MMM yyyy HH:mm 'UTC'") · @request.ReviewedByName</small> }
+                    @if (!string.IsNullOrWhiteSpace(request.GatewayRefundStatus)) { <small class="d-block text-body-secondary">Provider: @request.GatewayRefundStatus</small> }
+                    @if (!string.IsNullOrWhiteSpace(request.ReviewRemarks)) { <small class="d-block text-body-secondary">@request.ReviewRemarks</small> }
+                </td>
+                <td>
+                    @if (request.Status == RefundStatus.PendingReview && request.CanCurrentUserReview)
+                    {
+                        <textarea class="form-control form-control-sm mb-2" rows="2" maxlength="500" placeholder="Optional approval note; required for rejection" @bind="GetForm(request.Id).Remarks"></textarea>
+                        <div class="d-flex gap-2"><button class="btn btn-sm btn-success" @onclick="() => ReviewAsync(request.Id, true)">Approve</button><button class="btn btn-sm btn-outline-danger" @onclick="() => ReviewAsync(request.Id, false)">Reject</button></div>
+                    }
+                    else if (request.Status == RefundStatus.PendingReview)
+                    {
+                        <span class="text-body-secondary">Waiting for an eligible reviewer</span>
+                    }
+                    else if (request.Status == RefundStatus.Approved && request.CanRefundThroughGateway)
+                    {
+                        <button class="btn btn-sm btn-primary" @onclick="() => RunAsync(() => Finance.StartOnlineRefundAsync(_actorUserId, request.Id))">Send refund</button>
+                    }
+                    else if (request.Status == RefundStatus.Processing)
+                    {
+                        @if (request.CanRefundThroughGateway)
+                        {
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => RunAsync(() => Finance.RefreshOnlineRefundStatusAsync(_actorUserId, request.Id))">Refresh provider status</button>
+                        }
+                        else if (request.CanCompleteManualRefund)
+                        {
+                            <p class="small text-warning-emphasis">The provider response was lost. Reconcile it with SSLCOMMERZ before recording any manual completion.</p>
+                            <input class="form-control form-control-sm mb-2" maxlength="100" placeholder="Confirmed external refund reference" @bind="GetForm(request.Id).ExternalReference" />
+                            <button class="btn btn-sm btn-primary" @onclick="() => CompleteManualAsync(request.Id)">Record reconciled refund</button>
+                        }
+                        else
+                        {
+                            <span class="text-body-secondary">Refund request is being submitted to the provider.</span>
+                        }
+                    }
+                    else if (request.Status == RefundStatus.Approved && request.CanCompleteManualRefund)
+                    {
+                        <input class="form-control form-control-sm mb-2" maxlength="100" placeholder="External refund reference" @bind="GetForm(request.Id).ExternalReference" />
+                        <button class="btn btn-sm btn-primary" @onclick="() => CompleteManualAsync(request.Id)">Record completed refund</button>
+                    }
+                    else if (request.Status == RefundStatus.Failed)
+                    {
+                        <span class="text-body-secondary">Reconcile with the provider before requesting a new refund.</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(request.GatewayRefundReference)) { <small class="d-block mt-1 text-body-secondary">Provider reference: @request.GatewayRefundReference</small> }
+                    @if (!string.IsNullOrWhiteSpace(request.ManualRefundReference)) { <small class="d-block mt-1 text-body-secondary">Manual reference: @request.ManualRefundReference</small> }
+                </td>
+            </tr>
+        }</tbody>
+    </table></div>
+}
+
+@code {
+    private string _actorUserId = "";
+    private IReadOnlyList<RefundRequestSummary>? _requests;
+    private readonly Dictionary<int, RefundForm> _forms = [];
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _actorUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _requests = await Finance.GetRefundRequestsAsync(_actorUserId); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException)
+        { _requests = []; SetMessage(exception.Message, true); }
+    }
+
+    private async Task ReviewAsync(int requestId, bool approve) => await RunAsync(async () =>
+    {
+        await Finance.ReviewRefundAsync(_actorUserId, requestId, approve, GetForm(requestId).Remarks);
+        SetMessage(approve ? "Refund approved. Complete the gateway or manual refund workflow." : "Refund request rejected.");
+        await LoadAsync();
+    });
+
+    private async Task CompleteManualAsync(int requestId) => await RunAsync(async () =>
+    {
+        await Finance.CompleteManualRefundAsync(_actorUserId, requestId, GetForm(requestId).ExternalReference);
+        SetMessage("Completed refund recorded and invoice balance updated.");
+        await LoadAsync();
+    });
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try { await action(); await LoadAsync(); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException or HttpRequestException or TaskCanceledException)
+        { SetMessage(exception.Message, true); }
+    }
+
+    private RefundForm GetForm(int id) => _forms.GetValueOrDefault(id) ?? Add(id);
+    private RefundForm Add(int id) { var form = new RefundForm(); _forms[id] = form; return form; }
+    private void SetMessage(string message, bool error = false) { _message = message; _isError = error; }
+    private static string Money(decimal amount) => $"{amount:N2} BDT";
+    private static string StatusClass(RefundStatus status) => status switch { RefundStatus.Completed => "text-bg-success", RefundStatus.Rejected or RefundStatus.Failed => "text-bg-danger", RefundStatus.Processing => "text-bg-info", _ => "text-bg-warning" };
+    private sealed class RefundForm { public string Remarks { get; set; } = ""; public string ExternalReference { get; set; } = ""; }
+}

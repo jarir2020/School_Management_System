@@ -6,7 +6,7 @@ Build a realistic school administration and fee management application while lea
 
 ## Current state
 
-Phases 1–4 are implemented in source and their migrations are applied to the configured local MySQL database. Phase 2 adds an anonymous admission form, private PDF/PNG/JPEG uploads, role-protected review, approval/rejection history, capacity-checked student enrollment, guardian records, status history, a paginated student directory, profile updates, and CSV export. Phase 3 adds subject and teacher assignments, teacher-scoped attendance entry, correction requests and approval history, daily/monthly reports, and guardian-linked parent attendance. Phase 4 adds terms, examinations, assignment-scoped marks, complete-roster submission, review and publication history, academic-year grade bands, guardian-linked report cards, and reason-required published-mark revisions. The solution builds with no warnings or errors. The Phase 2–4 browser workflows still need manual walkthroughs. Later roadmap workflows remain planned.
+Phases 1–5 are implemented in source and their migrations are applied to the configured local MySQL database. Phase 2 adds an anonymous admission form, private PDF/PNG/JPEG uploads, role-protected review, approval/rejection history, capacity-checked student enrollment, guardian records, status history, a paginated student directory, profile updates, and CSV export. Phase 3 adds subject and teacher assignments, teacher-scoped attendance, reviewed corrections, reports, and guardian-linked attendance. Phase 4 adds examinations, teacher-scoped marks, review and publication, grade bands, linked-parent report cards, and reasoned revision history. Phase 5 adds class/year fee structures, active-enrollment assignments, approved discounts, invoice snapshots, partial cash/bank collections, receipt records, parent-scoped invoices, server-validated SSLCOMMERZ sandbox checkout, refund approval and status reconciliation, guardian-contact overdue reminder drafts, and school-timezone financial reports. The solution builds; the Phase 2–5 browser workflows still need manual walkthroughs. SSLCOMMERZ end-to-end flows need merchant sandbox credentials and a public HTTPS callback host. Later roadmap workflows remain planned.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ Super Admin; Admission Officer; Teacher; Accountant; Parent/Student; Principal. 
 2. Implemented in source: admission applications, private documents, review and approval, students, guardians, and yearly enrollment history. The full manual admission workflow walkthrough is pending.
 3. Implemented: subjects and teacher assignments; teacher-scoped attendance sessions and records; correction requests reviewed by Principal/Super Admin; daily and monthly reports; and parent attendance access through staff-managed guardian account links. Notifications remain planned.
 4. Implemented in source: terms and examinations; teacher-scoped mark entry and complete-roster submission; review, approval, publication, configurable grade bands, linked-parent report cards, and reasoned revision history. PDF report card export remains in Phase 6. The browser workflow walkthrough is pending.
-5. Fee structures, discounts, invoices, partial payments, allocations, receipts, refunds, overdue tracking, and reports.
+5. Implemented in source: fee structures, active-enrollment assignments, discount approvals, invoices, partial allocations, receipt printing, SSLCOMMERZ sandbox payment/refund flows, overdue reminder drafts, and school-timezone reports. SMTP delivery and scheduled reminders remain in Phase 6.
 6. Excel import/export, PDF documents, authorized downloads, announcements, messaging, email, and audit logs.
 7. Security review, backup strategy, production configuration, and deployment.
 
@@ -46,4 +46,4 @@ Super Admin; Admission Officer; Teacher; Accountant; Parent/Student; Principal. 
 
 The authoritative scope and implementation details are in [plan.md](plan.md). Follow [AGENTS.md](AGENTS.md) and keep [README.md](README.md), this file, and [llms.txt](llms.txt) synchronized with the actual repository state.
 
-The focused learning guides are [Phase 1](guides/PHASE1_THEORY_QUICK_GUIDE.md), [Phase 2](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md), [Phase 3](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md), and [Phase 4](guides/PHASE4_EXAMINATIONS_RESULTS_QUICK_GUIDE.md).
+The focused learning guides are [Phase 1](guides/PHASE1_THEORY_QUICK_GUIDE.md), [Phase 2](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md), [Phase 3](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md), [Phase 4](guides/PHASE4_EXAMINATIONS_RESULTS_QUICK_GUIDE.md), and [Phase 5](guides/PHASE5_FEES_FINANCE_QUICK_GUIDE.md).
