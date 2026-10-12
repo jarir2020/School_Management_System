@@ -12,4 +12,4 @@
 
 ## Current status
 
-Phase 1 implementation is in place: Identity sign-in, role-protected administration, school profile, academic years, classes, sections, user management, and an initial MySQL migration. The solution builds. Database CRUD has not yet been exercised because a MySQL server was unavailable in the implementation environment. Treat all later roadmap modules as planned until implemented.
+Phase 1's migration is applied to the local MySQL database. Phase 2 source includes anonymous admission applications, private document uploads, role-protected review and approval, atomic student enrollment, paginated student search, profile updates, and CSV export. The solution builds and the admissions route serves. Complete the manual workflow in the Phase 2 guide before relying on the full admissions flow. Later roadmap modules remain planned.

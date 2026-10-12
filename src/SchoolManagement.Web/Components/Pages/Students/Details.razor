@@ -1,0 +1,263 @@
+@page "/students/{StudentId:int}"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Admissions
+@using SchoolManagement.Core.Enums
+@inject IStudentDirectoryService Students
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Student record</PageTitle>
+<p><a href="/students">← Back to students</a></p>
+
+@if (_student is null)
+{
+    <p>Student record not found.</p>
+}
+else
+{
+    <h1>@_student.FullName</h1>
+    <p class="lead">Student number <strong>@_student.StudentNumber</strong> · @_student.Status</p>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <section class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5">Student and guardian details</h2>
+                    <EditForm Model="_form" OnValidSubmit="SaveAsync" FormName="student-details">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label" for="student-full-name">Full name</label>
+                                <InputText id="student-full-name" class="form-control" @bind-Value="_form.FullName" />
+                                <ValidationMessage For="() => _form.FullName" class="text-danger" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" for="student-dob">Date of birth</label>
+                                <InputDate id="student-dob" class="form-control" @bind-Value="_form.DateOfBirth" />
+                                <ValidationMessage For="() => _form.DateOfBirth" class="text-danger" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" for="student-gender">Gender</label>
+                                <InputText id="student-gender" class="form-control" @bind-Value="_form.Gender" />
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label" for="student-address">Address</label>
+                                <InputText id="student-address" class="form-control" @bind-Value="_form.Address" />
+                            </div>
+                        </div>
+                        <hr />
+                        <h3 class="h6">Primary guardian</h3>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="guardian-full-name">Full name</label>
+                                <InputText id="guardian-full-name" class="form-control" @bind-Value="_form.GuardianFullName" />
+                                <ValidationMessage For="() => _form.GuardianFullName" class="text-danger" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="guardian-relationship">Relationship</label>
+                                <InputText id="guardian-relationship" class="form-control" @bind-Value="_form.GuardianRelationship" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="guardian-phone">Phone</label>
+                                <InputText id="guardian-phone" class="form-control" @bind-Value="_form.GuardianPhone" />
+                                <ValidationMessage For="() => _form.GuardianPhone" class="text-danger" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="guardian-email">Email</label>
+                                <InputText id="guardian-email" type="email" class="form-control" @bind-Value="_form.GuardianEmail" />
+                                <ValidationMessage For="() => _form.GuardianEmail" class="text-danger" />
+                            </div>
+                            <div class="col-12 mb-3">
+                                <label class="form-label" for="guardian-address">Address</label>
+                                <InputText id="guardian-address" class="form-control" @bind-Value="_form.GuardianAddress" />
+                            </div>
+                        </div>
+                        <hr />
+                        <div class="row align-items-end">
+                            <div class="col-md-5 mb-3">
+                                <label class="form-label" for="student-status">Student status</label>
+                                <InputSelect id="student-status" class="form-select" @bind-Value="_form.Status">
+                                    <option value="@_student.Status">@_student.Status</option>
+                                    @if (_student.Status == StudentStatus.Active)
+                                    {
+                                        <option value="@StudentStatus.Withdrawn">Withdrawn</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            @if (_form.Status != _student.Status)
+                            {
+                                <div class="col-md-7 mb-3">
+                                    <label class="form-label" for="status-reason">Reason for status change</label>
+                                    <InputText id="status-reason" class="form-control" @bind-Value="_form.StatusReason" />
+                                    <ValidationMessage For="() => _form.StatusReason" class="text-danger" />
+                                </div>
+                            }
+                        </div>
+                        <button class="btn btn-primary" type="submit" disabled="@_isSaving">Save student record</button>
+                    </EditForm>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-body">
+                    <h2 class="h5">Enrollment history</h2>
+                    @if (_student.Enrollments.Count == 0)
+                    {
+                        <p class="text-body-secondary mb-0">No enrollment records.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead><tr><th>Academic year</th><th>Class</th><th>Section</th><th>Status</th><th>Enrolled</th></tr></thead>
+                                <tbody>
+                                    @foreach (var enrollment in _student.Enrollments)
+                                    {
+                                        <tr>
+                                            <td>@enrollment.AcademicYearName</td>
+                                            <td>@enrollment.ClassName</td>
+                                            <td>@enrollment.SectionName</td>
+                                            <td>@enrollment.Status</td>
+                                            <td>@enrollment.EnrolledAtUtc.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-5">
+            <section class="card">
+                <div class="card-body">
+                    <h2 class="h5">Status history</h2>
+                    <ol class="list-group list-group-numbered list-group-flush">
+                        @foreach (var history in _student.StatusHistory)
+                        {
+                            <li class="list-group-item px-0">
+                                @(history.PreviousStatus?.ToString() ?? "New admission") → @history.NewStatus
+                                <div>@history.Reason</div>
+                                <small class="text-body-secondary">@history.ChangedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
+                            </li>
+                        }
+                    </ol>
+                </div>
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int StudentId { get; set; }
+
+    private StudentDetails? _student;
+    private readonly StudentForm _form = new();
+    private string? _message;
+    private bool _isError;
+    private bool _isSaving;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _student = await Students.GetAsync(StudentId);
+        if (_student is null)
+        {
+            return;
+        }
+
+        _form.FullName = _student.FullName;
+        _form.DateOfBirth = _student.DateOfBirth;
+        _form.Gender = _student.Gender;
+        _form.Address = _student.Address;
+        var guardian = _student.Guardians.FirstOrDefault();
+        _form.GuardianFullName = guardian?.FullName ?? "";
+        _form.GuardianRelationship = guardian?.Relationship ?? "";
+        _form.GuardianPhone = guardian?.Phone ?? "";
+        _form.GuardianEmail = guardian?.Email ?? "";
+        _form.GuardianAddress = guardian?.Address ?? "";
+        _form.Status = _student.Status;
+        _form.StatusReason = "";
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_student is null) return;
+        _message = null;
+        _isSaving = true;
+        try
+        {
+            var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            await Students.UpdateAsync(StudentId, new StudentUpdateInput(
+                _form.FullName,
+                _form.DateOfBirth,
+                _form.Gender,
+                _form.Address,
+                _form.GuardianFullName,
+                _form.GuardianRelationship,
+                _form.GuardianPhone,
+                _form.GuardianEmail,
+                _form.GuardianAddress,
+                _form.Status,
+                _form.StatusReason), userId);
+            _isError = false;
+            _message = "Student record updated.";
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private sealed class StudentForm
+    {
+        [Required, StringLength(160)]
+        public string FullName { get; set; } = "";
+
+        [Required]
+        public DateOnly DateOfBirth { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-8));
+
+        [StringLength(40)]
+        public string Gender { get; set; } = "";
+
+        [StringLength(500)]
+        public string Address { get; set; } = "";
+
+        [Required, StringLength(160)]
+        public string GuardianFullName { get; set; } = "";
+
+        [Required, StringLength(60)]
+        public string GuardianRelationship { get; set; } = "";
+
+        [Required, Phone, StringLength(40)]
+        public string GuardianPhone { get; set; } = "";
+
+        [EmailAddress, StringLength(254)]
+        public string GuardianEmail { get; set; } = "";
+
+        [StringLength(500)]
+        public string GuardianAddress { get; set; } = "";
+
+        public StudentStatus Status { get; set; } = StudentStatus.Active;
+
+        [StringLength(500)]
+        public string StatusReason { get; set; } = "";
+    }
+}

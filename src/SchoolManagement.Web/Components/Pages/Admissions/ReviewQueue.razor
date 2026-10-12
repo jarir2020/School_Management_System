@@ -1,0 +1,92 @@
+@page "/admin/admissions"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)]
+@using SchoolManagement.Application.Admissions
+@using SchoolManagement.Core.Enums
+@inject IAdmissionService Admissions
+
+<PageTitle>Admission applications</PageTitle>
+<h1>Admission applications</h1>
+<p>Review applications, inspect their supporting documents, then approve and enroll or reject with a recorded decision.</p>
+
+<div class="row g-2 align-items-end mb-3">
+    <div class="col-md-6">
+        <label class="form-label" for="admission-search">Search</label>
+        <input id="admission-search" class="form-control" @bind="_search" @bind:event="oninput" placeholder="Application number, student, guardian, phone" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label" for="admission-status">Status</label>
+        <select id="admission-status" class="form-select" @bind="_statusFilter">
+            <option value="PendingReview">Pending review</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+            <option value="">All statuses</option>
+        </select>
+    </div>
+    <div class="col-md-3"><button type="button" class="btn btn-primary" @onclick="SearchAsync">Search applications</button></div>
+</div>
+
+@if (_applications is null)
+{
+    <p>Loading applications…</p>
+}
+else if (_applications.Items.Count == 0)
+{
+    <div class="alert alert-info">No applications match these filters.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead><tr><th>Application</th><th>Student</th><th>Guardian</th><th>Academic year</th><th>Submitted</th><th>Status</th><th>Files</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var application in _applications.Items)
+                {
+                    <tr>
+                        <td class="text-nowrap">@application.ApplicationNumber</td>
+                        <td>@application.StudentFullName</td>
+                        <td>@application.GuardianFullName<br /><small class="text-body-secondary">@application.GuardianPhone</small></td>
+                        <td>@application.AcademicYearName</td>
+                        <td class="text-nowrap">@application.SubmittedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</td>
+                        <td><span class="badge @StatusBadge(application.Status)">@application.Status</span></td>
+                        <td>@application.DocumentCount</td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="/admin/admissions/@application.Id">Review</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="d-flex align-items-center justify-content-between">
+        <span>Page @_applications.Page of @_applications.PageCount · @_applications.TotalCount application(s)</span>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary" disabled="@(_applications.Page <= 1)" @onclick="PreviousAsync">Previous</button>
+            <button type="button" class="btn btn-outline-secondary" disabled="@(_applications.Page >= _applications.PageCount)" @onclick="NextAsync">Next</button>
+        </div>
+    </div>
+}
+
+@code {
+    private PagedResult<AdmissionSummary>? _applications;
+    private string _search = "";
+    private string _statusFilter = nameof(AdmissionStatus.PendingReview);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync(1);
+
+    private async Task SearchAsync() => await LoadAsync(1);
+
+    private async Task PreviousAsync() => await LoadAsync(Math.Max(1, (_applications?.Page ?? 1) - 1));
+
+    private async Task NextAsync() => await LoadAsync((_applications?.Page ?? 1) + 1);
+
+    private async Task LoadAsync(int page)
+    {
+        AdmissionStatus? status = Enum.TryParse<AdmissionStatus>(_statusFilter, out var parsed) ? parsed : null;
+        _applications = await Admissions.SearchApplicationsAsync(new AdmissionSearchFilter(_search, status, page));
+    }
+
+    private static string StatusBadge(AdmissionStatus status) => status switch
+    {
+        AdmissionStatus.PendingReview => "text-bg-warning",
+        AdmissionStatus.Approved => "text-bg-success",
+        _ => "text-bg-secondary"
+    };
+}

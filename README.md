@@ -4,7 +4,7 @@ A learning-focused school administration and fee management platform built with 
 
 ## Project status
 
-Phase 1 implementation is in place: the four-project solution, MySQL-backed Identity, school setup CRUD, Super Admin account management, and the initial migration are ready. The solution builds successfully. Running the app and exercising its CRUD still requires a reachable MySQL 8.4 server. The full scope and roadmap are in [`plan.md`](plan.md).
+Phase 1 is implemented and its migration is applied to the local MySQL database. Phase 2 adds public admission applications, private document uploads, staff review and enrollment, and a searchable student directory. The solution builds successfully; run the Phase 2 walkthrough in its guide to exercise the full admission workflow. The full scope and roadmap are in [`plan.md`](plan.md).
 
 ## Technology
 
@@ -49,7 +49,7 @@ dotnet build SchoolManagement.sln
 dotnet run --project src/SchoolManagement.Web
 ```
 
-In Development, the app applies checked-in EF Core migrations and seeds the six roles. It creates the first Super Admin only when `SeedAdmin:Email` and `SeedAdmin:Password` are configured. Public registration is disabled; later accounts are created from User management. Phase 1 setup, sign-in, and admin page details are in [`guides/PHASE1_THEORY_QUICK_GUIDE.md`](guides/PHASE1_THEORY_QUICK_GUIDE.md).
+In Development, the app applies checked-in EF Core migrations and seeds the six roles. It creates the first Super Admin only when `SeedAdmin:Email` and `SeedAdmin:Password` are configured. Public registration is disabled; later accounts are created from User management. Anonymous visitors can submit admission applications; only Super Admins and Admission Officers can review them and access private documents. See the [Phase 1 guide](guides/PHASE1_THEORY_QUICK_GUIDE.md) and [Phase 2 guide](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md).
 
 Follow [`AGENTS.md`](AGENTS.md) for implementation guidance. The current .NET 9 / EF Core 9 / Pomelo 9 combination was selected to match the installed SDK and provider compatibility. Upgrade the target framework after a stable compatible Pomelo release is available.
 
@@ -61,3 +61,4 @@ Follow [`AGENTS.md`](AGENTS.md) for implementation guidance. The current .NET 9 
 - [`llms-full.txt`](llms-full.txt) — expanded project context for AI tools
 - [`LICENSE`](LICENSE) — MIT License
 - [`guides/PHASE1_THEORY_QUICK_GUIDE.md`](guides/PHASE1_THEORY_QUICK_GUIDE.md) — foundation concepts and setup walkthrough
+- [`guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md`](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md) — admissions workflow, private files, review, enrollment, and student directory

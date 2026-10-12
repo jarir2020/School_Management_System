@@ -1,0 +1,159 @@
+@page "/students"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)]
+@using Microsoft.AspNetCore.Components.Forms
+@using SchoolManagement.Application.Admissions
+@using SchoolManagement.Application.SchoolSetup
+@using SchoolManagement.Core.Entities
+@using SchoolManagement.Core.Enums
+@inject IStudentDirectoryService Students
+@inject IAdmissionService Admissions
+@inject ISchoolSetupService SchoolSetup
+@inject NavigationManager Navigation
+
+<PageTitle>Students</PageTitle>
+<h1>Students</h1>
+<p>Search admitted students, review their enrollment history, and export the filtered list as CSV.</p>
+
+<EditForm Model="_form" OnValidSubmit="SearchAsync" FormName="student-search" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-4">
+                <label class="form-label" for="student-search-text">Name, student number, or guardian phone</label>
+                <InputText id="student-search-text" class="form-control" @bind-Value="_form.Search" />
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label" for="student-status">Status</label>
+                <InputSelect id="student-status" class="form-select" @bind-Value="_form.Status">
+                    <option value="">All</option>
+                    @foreach (var status in Enum.GetValues<StudentStatus>())
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label" for="student-year">Academic year</label>
+                <InputSelect id="student-year" class="form-select" @bind-Value="_form.AcademicYearId">
+                    <option value="0">All years</option>
+                    @foreach (var year in _years)
+                    {
+                        <option value="@year.Id">@year.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label" for="student-section">Section</label>
+                <InputSelect id="student-section" class="form-select" @bind-Value="_form.SectionId">
+                    <option value="0">All sections</option>
+                    @foreach (var schoolSection in _sections)
+                    {
+                        <option value="@schoolSection.Id">@schoolSection.ClassName — @schoolSection.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-sm-6 col-lg-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Search</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="ExportCsv">CSV</button>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@if (_page is null)
+{
+    <p>Loading students…</p>
+}
+else if (_page.Items.Count == 0)
+{
+    <div class="alert alert-info">No students match these filters. Approved admission applications create student records.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead><tr><th>Student number</th><th>Name</th><th>Date of birth</th><th>Current enrollment</th><th>Guardian phone</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var student in _page.Items)
+                {
+                    <tr>
+                        <td class="text-nowrap">@student.StudentNumber</td>
+                        <td>@student.FullName</td>
+                        <td class="text-nowrap">@student.DateOfBirth.ToString("dd MMM yyyy")</td>
+                        <td>@(student.ClassName is null ? "—" : $"{student.ClassName} — {student.SectionName} ({student.AcademicYearName})")</td>
+                        <td>@student.GuardianPhone</td>
+                        <td><span class="badge @(student.Status == StudentStatus.Active ? "text-bg-success" : "text-bg-secondary")">@student.Status</span></td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="/students/@student.Id">Open</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="d-flex align-items-center justify-content-between">
+        <span>Page @_page.Page of @_page.PageCount · @_page.TotalCount student(s)</span>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary" disabled="@(_page.Page <= 1)" @onclick="PreviousAsync">Previous</button>
+            <button type="button" class="btn btn-outline-secondary" disabled="@(_page.Page >= _page.PageCount)" @onclick="NextAsync">Next</button>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly StudentSearchForm _form = new();
+    private List<AdmissionAcademicYear> _years = [];
+    private List<AdmissionSection> _sections = [];
+    private PagedResult<StudentSummary>? _page;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _years = (await Admissions.GetAcademicYearsAsync()).ToList();
+        var classes = await SchoolSetup.GetClassesAsync();
+        _sections = classes.SelectMany(schoolClass => schoolClass.Sections.Select(section => new AdmissionSection(
+                section.Id,
+                section.Name,
+                schoolClass.Name,
+                section.Capacity,
+                0)))
+            .OrderBy(section => section.ClassName)
+            .ThenBy(section => section.Name)
+            .ToList();
+        await LoadAsync(1);
+    }
+
+    private async Task SearchAsync() => await LoadAsync(1);
+
+    private async Task PreviousAsync() => await LoadAsync(Math.Max(1, (_page?.Page ?? 1) - 1));
+
+    private async Task NextAsync() => await LoadAsync((_page?.Page ?? 1) + 1);
+
+    private async Task LoadAsync(int page)
+    {
+        StudentStatus? status = Enum.TryParse<StudentStatus>(_form.Status, out var parsed) ? parsed : null;
+        _page = await Students.SearchAsync(new StudentSearchFilter(
+            _form.Search,
+            status,
+            _form.AcademicYearId > 0 ? _form.AcademicYearId : null,
+            _form.SectionId > 0 ? _form.SectionId : null,
+            page));
+    }
+
+    private void ExportCsv()
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_form.Search)) query.Add($"search={Uri.EscapeDataString(_form.Search)}");
+        if (Enum.TryParse<StudentStatus>(_form.Status, out var status)) query.Add($"status={status}");
+        if (_form.AcademicYearId > 0) query.Add($"academicYearId={_form.AcademicYearId}");
+        if (_form.SectionId > 0) query.Add($"sectionId={_form.SectionId}");
+        Navigation.NavigateTo("/admin/students/export.csv" + (query.Count == 0 ? "" : "?" + string.Join("&", query)));
+    }
+
+    private sealed class StudentSearchForm
+    {
+        public string Search { get; set; } = "";
+
+        public string Status { get; set; } = "";
+
+        public int AcademicYearId { get; set; }
+
+        public int SectionId { get; set; }
+    }
+}

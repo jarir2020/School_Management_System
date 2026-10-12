@@ -1,0 +1,233 @@
+@page "/admin/admissions/{ApplicationId:int}"
+@attribute [Authorize(Roles = SchoolRoles.SuperAdmin + "," + SchoolRoles.AdmissionOfficer)]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SchoolManagement.Application.Admissions
+@using SchoolManagement.Core.Enums
+@inject IAdmissionService Admissions
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Review admission</PageTitle>
+
+<p><a href="/admin/admissions">← Back to applications</a></p>
+@if (!_isLoaded)
+{
+    <p>Loading application…</p>
+}
+else if (_details is null)
+{
+    <p>Application not found.</p>
+}
+else
+{
+    <h1>Application @_details.ApplicationNumber</h1>
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @(_isError ? "alert-danger" : "alert-success")" role="status">@_message</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <section class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <h2 class="h5">Student details</h2>
+                        <span class="badge @StatusBadge(_details.Status)">@_details.Status</span>
+                    </div>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Name</dt><dd class="col-sm-8">@_details.StudentFullName</dd>
+                        <dt class="col-sm-4">Date of birth</dt><dd class="col-sm-8">@_details.DateOfBirth.ToString("dd MMM yyyy")</dd>
+                        <dt class="col-sm-4">Gender</dt><dd class="col-sm-8">@ValueOrDash(_details.Gender)</dd>
+                        <dt class="col-sm-4">Address</dt><dd class="col-sm-8">@ValueOrDash(_details.StudentAddress)</dd>
+                        <dt class="col-sm-4">Academic year</dt><dd class="col-sm-8">@_details.AcademicYearName</dd>
+                        <dt class="col-sm-4">Requested section</dt><dd class="col-sm-8">@(_details.RequestedSectionName ?? "No preference")</dd>
+                        <dt class="col-sm-4">Submitted</dt><dd class="col-sm-8">@_details.SubmittedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+                        @if (!string.IsNullOrWhiteSpace(_details.StudentNumber))
+                        {
+                            <dt class="col-sm-4">Student number</dt><dd class="col-sm-8"><a href="/students/@_details.StudentId">@_details.StudentNumber</a></dd>
+                        }
+                    </dl>
+                </div>
+            </section>
+
+            <section class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5">Parent or guardian</h2>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Name</dt><dd class="col-sm-8">@_details.GuardianFullName</dd>
+                        <dt class="col-sm-4">Relationship</dt><dd class="col-sm-8">@_details.GuardianRelationship</dd>
+                        <dt class="col-sm-4">Phone</dt><dd class="col-sm-8">@_details.GuardianPhone</dd>
+                        <dt class="col-sm-4">Email</dt><dd class="col-sm-8">@ValueOrDash(_details.GuardianEmail)</dd>
+                        <dt class="col-sm-4">Address</dt><dd class="col-sm-8">@ValueOrDash(_details.GuardianAddress)</dd>
+                    </dl>
+                </div>
+            </section>
+
+            <section class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5">Supporting documents</h2>
+                    @if (_details.Documents.Count == 0)
+                    {
+                        <p class="text-body-secondary mb-0">No documents were attached.</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group">
+                            @foreach (var document in _details.Documents)
+                            {
+                                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                    <span>@document.Type · @document.FileName <small class="text-body-secondary">(@FormatSize(document.SizeBytes))</small></span>
+                                    <a class="btn btn-sm btn-outline-primary" href="/admin/admissions/documents/@document.Id" target="_blank" rel="noopener">Open private file</a>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </section>
+
+            @if (_details.Reviews.Count > 0)
+            {
+                <section class="card">
+                    <div class="card-body">
+                        <h2 class="h5">Review history</h2>
+                        <ul class="list-group list-group-flush">
+                            @foreach (var review in _details.Reviews)
+                            {
+                                <li class="list-group-item px-0">
+                                    <strong>@review.Decision</strong> · @review.ReviewedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                                    <div>@ValueOrDash(review.Remarks)</div>
+                                    <small class="text-body-secondary">Reviewer account: @review.ReviewerUserId</small>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </section>
+            }
+        </div>
+
+        <div class="col-lg-5">
+            @if (_details.Status == AdmissionStatus.PendingReview)
+            {
+                <section class="card border-primary">
+                    <div class="card-body">
+                        <h2 class="h5">Record a decision</h2>
+                        <div class="mb-3">
+                            <label class="form-label" for="enrollment-section">Enrollment section</label>
+                            <InputSelect id="enrollment-section" class="form-select" @bind-Value="_form.SectionId">
+                                <option value="0">Choose a section</option>
+                                @foreach (var schoolSection in _sections)
+                                {
+                                    <option value="@schoolSection.Id" disabled="@(schoolSection.ActiveEnrollmentCount >= schoolSection.Capacity)">
+                                        @schoolSection.ClassName — @schoolSection.Name (@schoolSection.ActiveEnrollmentCount/@schoolSection.Capacity enrolled)
+                                    </option>
+                                }
+                            </InputSelect>
+                            @if (_sections.Count == 0)
+                            {
+                                <div class="form-text text-danger">Set up a class section before approving an application.</div>
+                            }
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="review-remarks">Remarks (optional, required when rejecting)</label>
+                            <InputTextArea id="review-remarks" class="form-control" @bind-Value="_form.Remarks" maxlength="1000" rows="4" />
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-success" type="button" disabled="@(_isSaving || !_sections.Any(item => item.ActiveEnrollmentCount < item.Capacity))" @onclick="ApproveAsync">Approve and enroll</button>
+                            <button class="btn btn-outline-danger" type="button" disabled="@_isSaving" @onclick="RejectAsync">Reject application</button>
+                        </div>
+                        <p class="form-text mt-3 mb-0">Approval creates the student, guardian link, enrollment, status history, and reviewer record in one database transaction.</p>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    This application has been reviewed.@if (!string.IsNullOrWhiteSpace(_details.StudentNumber))
+                    {
+                        <span> Student record: <a href="/students/@_details.StudentId">@_details.StudentNumber</a></span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ApplicationId { get; set; }
+
+    private AdmissionDetails? _details;
+    private List<AdmissionSection> _sections = [];
+    private readonly ReviewForm _form = new();
+    private string? _message;
+    private bool _isError;
+    private bool _isSaving;
+    private bool _isLoaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _details = await Admissions.GetApplicationAsync(ApplicationId);
+        if (_details is not null && _details.Status == AdmissionStatus.PendingReview)
+        {
+            _sections = (await Admissions.GetSectionsAsync(_details.AcademicYearId)).ToList();
+            _form.SectionId = _details.RequestedSectionId ?? 0;
+        }
+
+        _isLoaded = true;
+    }
+
+    private Task ApproveAsync() => DecideAsync(AdmissionDecision.Approved);
+
+    private Task RejectAsync() => DecideAsync(AdmissionDecision.Rejected);
+
+    private async Task DecideAsync(AdmissionDecision decision)
+    {
+        _message = null;
+        _isSaving = true;
+        try
+        {
+            var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var reviewerId = state.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var result = await Admissions.DecideAsync(
+                ApplicationId,
+                new AdmissionReviewInput(decision, _form.SectionId > 0 ? _form.SectionId : null, _form.Remarks),
+                reviewerId);
+            _isError = false;
+            _message = result.StudentNumber is null
+                ? $"Application {result.ApplicationNumber} was rejected and recorded."
+                : $"Application approved and enrolled as student {result.StudentNumber}.";
+            _details = await Admissions.GetApplicationAsync(ApplicationId);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            _isError = true;
+            _message = exception.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static string ValueOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string FormatSize(long sizeBytes) => sizeBytes < 1024 * 1024
+        ? $"{Math.Ceiling(sizeBytes / 1024d):0} KB"
+        : $"{sizeBytes / 1024d / 1024d:0.0} MB";
+
+    private static string StatusBadge(AdmissionStatus status) => status switch
+    {
+        AdmissionStatus.PendingReview => "text-bg-warning",
+        AdmissionStatus.Approved => "text-bg-success",
+        _ => "text-bg-secondary"
+    };
+
+    private sealed class ReviewForm
+    {
+        public int SectionId { get; set; }
+
+        [StringLength(1000)]
+        public string Remarks { get; set; } = "";
+    }
+}

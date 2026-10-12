@@ -1,0 +1,280 @@
+@page "/admissions/apply"
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using SchoolManagement.Application.Admissions
+@using SchoolManagement.Core.Enums
+@inject IAdmissionService Admissions
+
+<PageTitle>Apply for admission</PageTitle>
+
+<h1>Admission application</h1>
+<p class="lead">Complete the student and guardian details. A school officer will review the application before enrollment.</p>
+
+@if (_receipt is not null)
+{
+    <div class="alert alert-success" role="status">
+        <h2 class="h5">Application submitted</h2>
+        <p class="mb-1">Save this application number so you can refer to it when contacting the school:</p>
+        <strong class="fs-4">@_receipt.ApplicationNumber</strong>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SubmitAsync" FormName="admission-application">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <section class="card mb-4">
+            <div class="card-body">
+                <h2 class="h5">Student</h2>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="applicant-name">Full name</label>
+                        <InputText id="applicant-name" class="form-control" @bind-Value="_form.StudentFullName" />
+                        <ValidationMessage For="() => _form.StudentFullName" class="text-danger" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label" for="applicant-dob">Date of birth</label>
+                        <InputDate id="applicant-dob" class="form-control" @bind-Value="_form.DateOfBirth" />
+                        <ValidationMessage For="() => _form.DateOfBirth" class="text-danger" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label" for="applicant-gender">Gender (optional)</label>
+                        <InputSelect id="applicant-gender" class="form-select" @bind-Value="_form.Gender">
+                            <option value="">Prefer not to say</option>
+                            <option>Female</option>
+                            <option>Male</option>
+                            <option>Other</option>
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="applicant-year">Academic year</label>
+                        <InputSelect id="applicant-year" class="form-select" @bind-Value="_form.AcademicYearId" @bind-Value:after="AcademicYearChangedAsync">
+                            <option value="0">Select an academic year</option>
+                            @foreach (var year in _years)
+                            {
+                                <option value="@year.Id">@year.Name (@year.StartDate.ToString("yyyy-MM-dd") to @year.EndDate.ToString("yyyy-MM-dd"))</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="() => _form.AcademicYearId" class="text-danger" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="applicant-section">Preferred section (optional)</label>
+                        <InputSelect id="applicant-section" class="form-select" @bind-Value="_form.RequestedSectionId">
+                            <option value="0">No preference</option>
+                            @foreach (var schoolSection in _sections.Where(item => item.ActiveEnrollmentCount < item.Capacity))
+                            {
+                                <option value="@schoolSection.Id">@schoolSection.ClassName — @schoolSection.Name (@(schoolSection.Capacity - schoolSection.ActiveEnrollmentCount) places)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="applicant-address">Student address</label>
+                    <InputTextArea id="applicant-address" class="form-control" @bind-Value="_form.StudentAddress" />
+                </div>
+            </div>
+        </section>
+
+        <section class="card mb-4">
+            <div class="card-body">
+                <h2 class="h5">Parent or guardian</h2>
+                <div class="row">
+                    <div class="col-md-5 mb-3">
+                        <label class="form-label" for="guardian-name">Full name</label>
+                        <InputText id="guardian-name" class="form-control" @bind-Value="_form.GuardianFullName" />
+                        <ValidationMessage For="() => _form.GuardianFullName" class="text-danger" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label" for="guardian-relationship">Relationship</label>
+                        <InputText id="guardian-relationship" class="form-control" @bind-Value="_form.GuardianRelationship" />
+                        <ValidationMessage For="() => _form.GuardianRelationship" class="text-danger" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="guardian-phone">Phone</label>
+                        <InputText id="guardian-phone" class="form-control" @bind-Value="_form.GuardianPhone" />
+                        <ValidationMessage For="() => _form.GuardianPhone" class="text-danger" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="guardian-email">Email (optional)</label>
+                        <InputText id="guardian-email" type="email" class="form-control" @bind-Value="_form.GuardianEmail" />
+                        <ValidationMessage For="() => _form.GuardianEmail" class="text-danger" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="guardian-address">Address</label>
+                        <InputText id="guardian-address" class="form-control" @bind-Value="_form.GuardianAddress" />
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card mb-4">
+            <div class="card-body">
+                <h2 class="h5">Supporting documents (optional, up to 5 MB each)</h2>
+                <p class="text-body-secondary">PDF, PNG, and JPEG files are accepted. Uploaded files are stored privately for school staff to review.</p>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="student-photo">Student photograph</label>
+                        <InputFile id="student-photo" accept=".png,.jpg,.jpeg" OnChange="OnPhotoChanged" />
+                        <div class="form-text">@FileName(_photo)</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="birth-certificate">Birth certificate</label>
+                        <InputFile id="birth-certificate" accept=".pdf,.png,.jpg,.jpeg" OnChange="OnBirthCertificateChanged" />
+                        <div class="form-text">@FileName(_birthCertificate)</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="other-document">Other document</label>
+                        <InputFile id="other-document" accept=".pdf,.png,.jpg,.jpeg" OnChange="OnOtherDocumentChanged" />
+                        <div class="form-text">@FileName(_otherDocument)</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <p class="text-body-secondary">Submitting this form shares these details and files with the school's admissions staff.</p>
+        <button class="btn btn-primary" type="submit" disabled="@(_years.Count == 0 || _isSubmitting)">
+            @(_isSubmitting ? "Submitting…" : "Submit application")
+        </button>
+    </EditForm>
+}
+
+@code {
+    private const long MaximumDocumentSize = 5 * 1024 * 1024;
+    private readonly AdmissionApplicationForm _form = new();
+    private List<AdmissionAcademicYear> _years = [];
+    private List<AdmissionSection> _sections = [];
+    private IBrowserFile? _photo;
+    private IBrowserFile? _birthCertificate;
+    private IBrowserFile? _otherDocument;
+    private AdmissionReceipt? _receipt;
+    private string? _error;
+    private bool _isSubmitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _years = (await Admissions.GetAcademicYearsAsync()).ToList();
+        if (_years.Count > 0)
+        {
+            _form.AcademicYearId = _years.FirstOrDefault(year => year.IsActive)?.Id ?? _years[0].Id;
+            await LoadSectionsAsync();
+        }
+    }
+
+    private async Task AcademicYearChangedAsync() => await LoadSectionsAsync();
+
+    private async Task LoadSectionsAsync()
+    {
+        _sections = _form.AcademicYearId > 0
+            ? (await Admissions.GetSectionsAsync(_form.AcademicYearId)).ToList()
+            : [];
+        if (_form.RequestedSectionId > 0 && !_sections.Any(section => section.Id == _form.RequestedSectionId))
+        {
+            _form.RequestedSectionId = 0;
+        }
+    }
+
+    private void OnPhotoChanged(InputFileChangeEventArgs args) => _photo = args.File;
+
+    private void OnBirthCertificateChanged(InputFileChangeEventArgs args) => _birthCertificate = args.File;
+
+    private void OnOtherDocumentChanged(InputFileChangeEventArgs args) => _otherDocument = args.File;
+
+    private static string FileName(IBrowserFile? file) => file is null ? "No file selected" : $"Selected: {file.Name}";
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _isSubmitting = true;
+        try
+        {
+            var documents = new List<AdmissionDocumentUpload>();
+            if (_photo is not null)
+            {
+                documents.Add(await ReadDocumentAsync(AdmissionDocumentType.Photograph, _photo));
+            }
+            if (_birthCertificate is not null)
+            {
+                documents.Add(await ReadDocumentAsync(AdmissionDocumentType.BirthCertificate, _birthCertificate));
+            }
+            if (_otherDocument is not null)
+            {
+                documents.Add(await ReadDocumentAsync(AdmissionDocumentType.Other, _otherDocument));
+            }
+
+            _receipt = await Admissions.SubmitAsync(
+                new AdmissionSubmissionInput(
+                    _form.AcademicYearId,
+                    _form.RequestedSectionId > 0 ? _form.RequestedSectionId : null,
+                    _form.StudentFullName,
+                    _form.DateOfBirth,
+                    _form.Gender,
+                    _form.StudentAddress,
+                    _form.GuardianFullName,
+                    _form.GuardianRelationship,
+                    _form.GuardianPhone,
+                    _form.GuardianEmail,
+                    _form.GuardianAddress),
+                documents);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException or IOException)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private static async Task<AdmissionDocumentUpload> ReadDocumentAsync(AdmissionDocumentType type, IBrowserFile file)
+    {
+        await using var source = file.OpenReadStream(MaximumDocumentSize);
+        using var buffer = new MemoryStream();
+        await source.CopyToAsync(buffer);
+        return new AdmissionDocumentUpload(type, file.Name, buffer.ToArray());
+    }
+
+    private sealed class AdmissionApplicationForm
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Choose an academic year.")]
+        public int AcademicYearId { get; set; }
+
+        public int RequestedSectionId { get; set; }
+
+        [Required, StringLength(160)]
+        public string StudentFullName { get; set; } = "";
+
+        [Required]
+        public DateOnly DateOfBirth { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-8));
+
+        [StringLength(40)]
+        public string Gender { get; set; } = "";
+
+        [StringLength(500)]
+        public string StudentAddress { get; set; } = "";
+
+        [Required, StringLength(160)]
+        public string GuardianFullName { get; set; } = "";
+
+        [Required, StringLength(60)]
+        public string GuardianRelationship { get; set; } = "";
+
+        [Required, Phone, StringLength(40)]
+        public string GuardianPhone { get; set; } = "";
+
+        [EmailAddress, StringLength(254)]
+        public string GuardianEmail { get; set; } = "";
+
+        [StringLength(500)]
+        public string GuardianAddress { get; set; } = "";
+    }
+}

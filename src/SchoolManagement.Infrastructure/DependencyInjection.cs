@@ -3,9 +3,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SchoolManagement.Application.Persistence;
+using SchoolManagement.Application.Admissions;
 using SchoolManagement.Application.SchoolSetup;
 using SchoolManagement.Application.UserManagement;
 using SchoolManagement.Infrastructure.Identity;
+using SchoolManagement.Infrastructure.Files;
 using SchoolManagement.Infrastructure.Persistence;
 using SchoolManagement.Infrastructure.Seeding;
 using SchoolManagement.Infrastructure.Services;
@@ -16,7 +18,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddSchoolManagementInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string contentRootPath)
     {
         var connectionString = configuration.GetConnectionString("SchoolManagement");
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -54,8 +57,15 @@ public static class DependencyInjection
             .AddDefaultTokenProviders();
 
         services.AddScoped<ISchoolSetupService, SchoolSetupService>();
+        services.AddScoped<IAdmissionService, AdmissionService>();
+        services.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<InitialDataSeeder>();
+
+        var privateDocumentRoot = configuration["Storage:PrivateDocumentRoot"]
+            ?? Path.Combine(contentRootPath, "..", "..", ".local", "private-documents");
+        services.AddSingleton<IPrivateDocumentStore>(
+            new LocalPrivateDocumentStore(Path.GetFullPath(privateDocumentRoot, contentRootPath)));
 
         return services;
     }

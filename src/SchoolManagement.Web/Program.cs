@@ -7,6 +7,9 @@ using SchoolManagement.Infrastructure;
 using SchoolManagement.Infrastructure.Identity;
 using SchoolManagement.Infrastructure.Persistence;
 using SchoolManagement.Infrastructure.Seeding;
+using SchoolManagement.Application.Admissions;
+using SchoolManagement.Core.Authorization;
+using SchoolManagement.Core.Enums;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +30,7 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
-builder.Services.AddSchoolManagementInfrastructure(builder.Configuration);
+builder.Services.AddSchoolManagementInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
@@ -56,6 +59,38 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+Action<Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder> admissionStaffPolicy = policy =>
+    policy.RequireRole(SchoolRoles.SuperAdmin, SchoolRoles.AdmissionOfficer);
+
+app.MapGet("/admin/admissions/documents/{documentId:int}", async (
+        int documentId,
+        IAdmissionService admissions,
+        CancellationToken cancellationToken) =>
+    {
+        var document = await admissions.GetDocumentAsync(documentId, cancellationToken);
+        return document is null
+            ? Results.NotFound()
+            : Results.File(document.Content, document.ContentType, Path.GetFileName(document.FileName));
+    })
+    .RequireAuthorization(admissionStaffPolicy);
+
+app.MapGet("/admin/students/export.csv", async (
+        string? search,
+        StudentStatus? status,
+        int? academicYearId,
+        int? sectionId,
+        IStudentDirectoryService students,
+        CancellationToken cancellationToken) =>
+    {
+        var export = await students.ExportCsvAsync(new StudentSearchFilter(
+            search,
+            status,
+            academicYearId,
+            sectionId), cancellationToken);
+        return Results.File(export.Content, export.ContentType, export.FileName);
+    })
+    .RequireAuthorization(admissionStaffPolicy);
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();

@@ -6,7 +6,7 @@ Build a realistic school administration and fee management application while lea
 
 ## Current state
 
-Phase 1 implementation is in place: Identity sign-in, role-protected administration pages for school profile, academic years, classes and sections, Super Admin user management, and the initial MySQL migration. The solution builds successfully. Database CRUD has not yet been run because no MySQL server was available in the implementation environment. Do not claim later roadmap workflows are complete until their implementation is present and reviewed.
+Phase 1's initial migration is applied to the local MySQL database. Phase 2 source adds an anonymous admission form, private PDF/PNG/JPEG uploads, role-protected review, approval/rejection history, capacity-checked student enrollment, guardian records, status history, a paginated student directory, profile updates, and CSV export. The solution builds and the admissions route serves. The full browser submission/review workflow still needs a manual walkthrough. Later roadmap workflows remain planned.
 
 ## Architecture
 
@@ -24,8 +24,8 @@ Super Admin; Admission Officer; Teacher; Accountant; Parent/Student; Principal. 
 
 ## Planned modules
 
-1. School profile, academic years, terms, classes, sections, subjects, assignments, grading scales, and calendar.
-2. Admission applications, private documents, review and approval, students, guardians, and yearly enrollment history.
+1. Implemented: school profile, academic years, classes, and sections. Terms, subjects, assignments, grading scales, and calendar remain planned.
+2. Implemented in source: admission applications, private documents, review and approval, students, guardians, and yearly enrollment history. The full manual admission workflow walkthrough is pending.
 3. Teacher assignments, attendance sessions and records, correction requests, reports, and parent notifications.
 4. Examinations, subject marks, validation, result submission and approval, configurable grades, report cards, and revision history.
 5. Fee structures, discounts, invoices, partial payments, allocations, receipts, refunds, overdue tracking, and reports.
@@ -45,3 +45,5 @@ Super Admin; Admission Officer; Teacher; Accountant; Parent/Student; Principal. 
 ## Roadmap and guidance
 
 The authoritative scope and implementation details are in [plan.md](plan.md). Follow [AGENTS.md](AGENTS.md) and keep [README.md](README.md), this file, and [llms.txt](llms.txt) synchronized with the actual repository state.
+
+The focused learning guides are [Phase 1](guides/PHASE1_THEORY_QUICK_GUIDE.md) and [Phase 2](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md).
