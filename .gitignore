@@ -8,6 +8,8 @@
 
 # Local configuration and secrets
 .local/
+.secrets/
+backups/
 .env
 .env.*
 !.env.example

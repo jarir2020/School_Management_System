@@ -27,6 +27,9 @@
 - Update `README.md` when setup, run, or phase status changes.
 - Add or update a focused guide for each completed learning phase.
 - Keep `llms.txt` and `llms-full.txt` aligned with the repository's actual state; do not describe planned features as implemented.
+- Run the Phase 7 unit and service-integration tests with `dotnet test SchoolManagement.sln`. The GitHub Actions workflow also applies migrations to a disposable MySQL 8.4 service and starts the app in Production to check its health endpoints.
+- Production must receive an explicit database connection, trusted reverse-proxy IP, allowed host names, persistent Data Protection key path, and absolute private-document path. Do not enable automatic production migrations.
+- Backups contain private student and financial data. Keep MySQL client credentials in a protected file, store backup copies outside the application host, and verify restoration in an isolated database.
 
 ## Worktree care
 

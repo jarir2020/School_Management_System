@@ -98,9 +98,9 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
                     StudentId = table.Column<int>(type: "int", nullable: false),
-                    ParentUserId = table.Column<string>(type: "varchar(450)", maxLength: 450, nullable: false)
+                    ParentUserId = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    TeacherUserId = table.Column<string>(type: "varchar(450)", maxLength: 450, nullable: false)
+                    TeacherUserId = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false),
                     LastMessageAtUtc = table.Column<DateTimeOffset>(type: "datetime(6)", nullable: false)

@@ -1,0 +1,72 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in .env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping --host=127.0.0.1 --user=root --password=\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      school_internal:
+        ipv4_address: 172.29.0.2
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      AllowedHosts: ${ALLOWED_HOSTS:?Set ALLOWED_HOSTS in .env}
+      ConnectionStrings__SchoolManagement: "Server=mysql;Port=3306;Database=${MYSQL_DATABASE};User ID=${MYSQL_USER};Password=${MYSQL_PASSWORD};"
+      ForwardedHeaders__KnownProxies__0: ${TRUSTED_PROXY_IP:?Set TRUSTED_PROXY_IP in .env}
+      Storage__PrivateDocumentRoot: /var/lib/schoolmanagement/private-documents
+      DataProtection__KeyDirectory: /var/lib/schoolmanagement/data-protection
+      DataProtection__CertificatePath: /run/secrets/data-protection.pfx
+      DataProtection__CertificatePasswordFile: /run/secrets/data-protection-certificate-password
+      SeedAdmin__Email: ${SEED_ADMIN_EMAIL:-}
+      SeedAdmin__Password: ${SEED_ADMIN_PASSWORD:-}
+      SeedAdmin__FullName: ${SEED_ADMIN_FULL_NAME:-School Administrator}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    volumes:
+      - private_documents:/var/lib/schoolmanagement/private-documents
+      - data_protection_keys:/var/lib/schoolmanagement/data-protection
+      - ${DATAPROTECTION_CERT_FILE:?Set DATAPROTECTION_CERT_FILE in .env}:/run/secrets/data-protection.pfx:ro
+    secrets:
+      - source: data_protection_certificate_password
+        target: data-protection-certificate-password
+    networks:
+      school_internal:
+        ipv4_address: 172.29.0.10
+
+volumes:
+  mysql_data:
+  private_documents:
+  data_protection_keys:
+
+networks:
+  school_internal:
+    ipam:
+      config:
+        - subnet: 172.29.0.0/24
+          gateway: 172.29.0.1
+
+secrets:
+  data_protection_certificate_password:
+    file: ${DATAPROTECTION_CERT_PASSWORD_FILE:?Set DATAPROTECTION_CERT_PASSWORD_FILE in .env}

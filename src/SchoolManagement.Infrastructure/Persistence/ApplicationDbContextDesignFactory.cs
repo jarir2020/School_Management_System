@@ -10,8 +10,9 @@ public sealed class ApplicationDbContextDesignFactory : IDesignTimeDbContextFact
 {
     public ApplicationDbContext CreateDbContext(string[] args)
     {
-        // The migration command only needs provider metadata; it does not connect to this placeholder.
-        var connectionString = "Server=localhost;Port=3306;Database=school_management;";
+        // EF migrations need provider metadata at design time; database update scripts supply the real connection string explicitly.
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__SchoolManagement")
+            ?? "Server=localhost;Port=3306;Database=school_management;";
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseMySql(
                 connectionString,

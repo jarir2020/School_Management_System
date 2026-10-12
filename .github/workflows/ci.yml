@@ -1,0 +1,80 @@
+name: School Management CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_test_root_password
+          MYSQL_DATABASE: school_management_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=ci_test_root_password --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+          --health-start-period=30s
+    env:
+      ConnectionStrings__SchoolManagement: Server=127.0.0.1;Port=3306;Database=school_management_ci;User ID=root;Password=ci_test_root_password;
+      Storage__PrivateDocumentRoot: ${{ runner.temp }}/school-management-private
+      DataProtection__KeyDirectory: ${{ runner.temp }}/school-management-keys
+      DataProtection__CertificatePath: ${{ runner.temp }}/school-management-data-protection.pfx
+      DataProtection__CertificatePassword: ci_test_certificate_password
+      ForwardedHeaders__KnownProxies__0: 127.0.0.1
+      AllowedHosts: localhost;127.0.0.1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+      - name: Restore
+        run: dotnet restore SchoolManagement.sln
+      - name: Audit NuGet packages
+        run: dotnet list SchoolManagement.sln package --vulnerable --include-transitive
+      - name: Build
+        run: dotnet build SchoolManagement.sln --configuration Release --no-restore
+      - name: Test
+        run: dotnet test tests/SchoolManagement.Tests/SchoolManagement.Tests.csproj --configuration Release --no-build
+      - name: Apply all migrations to disposable MySQL
+        run: |
+          dotnet tool restore
+          dotnet ef database update \
+            --project src/SchoolManagement.Infrastructure \
+            --startup-project src/SchoolManagement.Web \
+            --configuration Release
+      - name: Create temporary Data Protection certificate
+        run: |
+          openssl req -x509 -newkey rsa:3072 -nodes \
+            -keyout "${RUNNER_TEMP}/school-management-data-protection.key" \
+            -out "${RUNNER_TEMP}/school-management-data-protection.crt" \
+            -subj "/CN=SchoolManagement-CI" -days 2
+          openssl pkcs12 -export \
+            -inkey "${RUNNER_TEMP}/school-management-data-protection.key" \
+            -in "${RUNNER_TEMP}/school-management-data-protection.crt" \
+            -out "${RUNNER_TEMP}/school-management-data-protection.pfx" \
+            -passout pass:ci_test_certificate_password
+      - name: Check production health endpoints against MySQL
+        run: |
+          dotnet run --project src/SchoolManagement.Web --configuration Release --no-build --urls http://127.0.0.1:5187 > "${RUNNER_TEMP}/school-management-app.log" 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true; wait "$app_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5187/health/ready; then
+              curl --fail --silent http://127.0.0.1:5187/health/live
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SchoolManagement.Web.Components;
@@ -13,6 +16,8 @@ using SchoolManagement.Application.Administration;
 using SchoolManagement.Core.Authorization;
 using SchoolManagement.Core.Enums;
 using System.Security.Claims;
+using System.Security.Cryptography.X509Certificates;
+using System.Net;
 using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,6 +39,101 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme, options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+});
+
+var trustedProxyAddresses = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
+if (!builder.Environment.IsDevelopment() && trustedProxyAddresses.Length == 0)
+{
+    throw new InvalidOperationException("Configure at least one trusted reverse proxy in ForwardedHeaders:KnownProxies for production.");
+}
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.RequireHeaderSymmetry = true;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+
+    foreach (var proxyAddress in trustedProxyAddresses)
+    {
+        if (!IPAddress.TryParse(proxyAddress, out var address))
+        {
+            throw new InvalidOperationException("ForwardedHeaders:KnownProxies must contain valid IP addresses.");
+        }
+
+        options.KnownProxies.Add(address);
+    }
+});
+
+var dataProtectionKeyDirectory = builder.Configuration["DataProtection:KeyDirectory"];
+var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
+var dataProtectionCertificatePassword = builder.Configuration["DataProtection:CertificatePassword"];
+var dataProtectionCertificatePasswordFile = builder.Configuration["DataProtection:CertificatePasswordFile"];
+if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePasswordFile))
+{
+    if (!Path.IsPathFullyQualified(dataProtectionCertificatePasswordFile))
+    {
+        throw new InvalidOperationException("DataProtection:CertificatePasswordFile must be an absolute path.");
+    }
+
+    dataProtectionCertificatePassword = File.ReadAllText(dataProtectionCertificatePasswordFile).TrimEnd('\r', '\n');
+}
+
+if (!builder.Environment.IsDevelopment()
+    && (string.IsNullOrWhiteSpace(dataProtectionKeyDirectory) || !Path.IsPathFullyQualified(dataProtectionKeyDirectory)))
+{
+    throw new InvalidOperationException("Set DataProtection:KeyDirectory to an absolute persistent private directory in production.");
+}
+
+if (!builder.Environment.IsDevelopment()
+    && (string.IsNullOrWhiteSpace(dataProtectionCertificatePath)
+        || !Path.IsPathFullyQualified(dataProtectionCertificatePath)
+        || string.IsNullOrWhiteSpace(dataProtectionCertificatePassword)))
+{
+    throw new InvalidOperationException("Set DataProtection:CertificatePath and either CertificatePassword or CertificatePasswordFile so production keys are encrypted at rest.");
+}
+
+if (!string.IsNullOrWhiteSpace(dataProtectionKeyDirectory) || !string.IsNullOrWhiteSpace(dataProtectionCertificatePath))
+{
+    var dataProtectionBuilder = builder.Services.AddDataProtection().SetApplicationName("SchoolManagement");
+    if (!string.IsNullOrWhiteSpace(dataProtectionKeyDirectory))
+    {
+        var keyDirectory = Path.GetFullPath(dataProtectionKeyDirectory, builder.Environment.ContentRootPath);
+        Directory.CreateDirectory(keyDirectory);
+        dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(keyDirectory));
+    }
+
+    if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath))
+    {
+        var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            dataProtectionCertificatePath,
+            dataProtectionCertificatePassword,
+            X509KeyStorageFlags.EphemeralKeySet);
+        dataProtectionBuilder.ProtectKeysWithCertificate(certificate);
+    }
+}
+
+var privateDocumentRoot = builder.Configuration["Storage:PrivateDocumentRoot"];
+if (!builder.Environment.IsDevelopment()
+    && (string.IsNullOrWhiteSpace(privateDocumentRoot) || !Path.IsPathFullyQualified(privateDocumentRoot)))
+{
+    throw new InvalidOperationException("Set Storage:PrivateDocumentRoot to an absolute private directory in production.");
+}
+
+var allowedHosts = builder.Configuration["AllowedHosts"];
+if (!builder.Environment.IsDevelopment()
+    && (string.IsNullOrWhiteSpace(allowedHosts) || allowedHosts.Trim() == "*"))
+{
+    throw new InvalidOperationException("Set AllowedHosts to the public host names served by this production instance.");
+}
+
 builder.Services.AddSchoolManagementInfrastructure(builder.Configuration, builder.Environment.ContentRootPath);
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -43,6 +143,8 @@ QuestPDF.Settings.License = LicenseType.Community;
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseForwardedHeaders();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
@@ -60,6 +162,31 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseAntiforgery();
+
+app.MapGet("/health/live", () => Results.Ok(new { status = "live" }))
+    .AllowAnonymous();
+
+app.MapGet("/health/ready", async (
+        IDbContextFactory<ApplicationDbContext> contextFactory,
+        CancellationToken cancellationToken) =>
+    {
+        try
+        {
+            await using var dbContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+            return await dbContext.Database.CanConnectAsync(cancellationToken)
+                ? Results.Ok(new { status = "ready" })
+                : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+    })
+    .AllowAnonymous();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

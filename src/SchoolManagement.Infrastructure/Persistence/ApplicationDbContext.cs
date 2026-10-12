@@ -738,8 +738,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.ToTable("Conversations");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.ParentUserId).HasMaxLength(450).IsRequired();
-            entity.Property(item => item.TeacherUserId).HasMaxLength(450).IsRequired();
+            entity.Property(item => item.ParentUserId).HasMaxLength(255).IsRequired();
+            entity.Property(item => item.TeacherUserId).HasMaxLength(255).IsRequired();
             entity.HasIndex(item => new { item.StudentId, item.ParentUserId, item.TeacherUserId }).IsUnique();
             entity.HasIndex(item => new { item.ParentUserId, item.LastMessageAtUtc });
             entity.HasIndex(item => new { item.TeacherUserId, item.LastMessageAtUtc });

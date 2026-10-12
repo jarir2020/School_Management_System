@@ -4,7 +4,7 @@ A learning-focused school administration and fee management platform built with 
 
 ## Project status
 
-Phases 1–6 are implemented in source. Phase 6 adds validated student and marks workbooks, filtered Excel exports, invoice/receipt/report-card PDFs, protected ZIP document downloads, announcements, parent-teacher messages with private attachments, audit records, SMTP email queueing, and scheduled overdue reminders. The Phase 6 migration is generated but has not been applied because the local MySQL service is unavailable in this environment. The solution builds; the Phase 2–6 browser workflows still need manual walkthroughs. SSLCOMMERZ checkout/refunds need merchant credentials and a public HTTPS callback host. SMTP delivery needs local SMTP configuration. The full scope and roadmap are in plan.md.
+Phases 1–7 are implemented in source. Phase 7 adds grade-calculation unit tests, SQLite-backed workflow tests for admissions, teacher marks, and verified/underpaid payments, a NuGet vulnerability audit, MySQL migration and production-startup checks in CI, production health endpoints, container configuration, an explicit migration command, and a private MySQL backup script. All 10 local unit and workflow tests passed; no vulnerable packages were reported. All migrations also applied to a disposable MySQL 8.4 database, and the Production health smoke check returned `ready` and `live`. The Phase 6 migration is generated but remains unapplied to the local database because the local MySQL login could not be authenticated in this environment. The Phase 2–7 browser workflows still need manual walkthroughs. SSLCOMMERZ checkout/refunds need merchant credentials and a public HTTPS callback host. SMTP delivery needs local SMTP configuration. No production deployment has been performed.
 
 ## Technology
 
@@ -13,7 +13,7 @@ Phases 1–6 are implemented in source. Phase 6 adds validated student and marks
 - MySQL 8.4 with Entity Framework Core 9 and Pomelo 9
 - ASP.NET Core Identity with role and policy-based authorization
 - ClosedXML for Excel, QuestPDF for PDFs, and SMTP-backed background email
-- xUnit and integration tests as the application grows
+- xUnit v3 unit and service-integration tests, with a MySQL migration/startup smoke check in GitHub Actions
 
 The application is a modular monolith. Admissions, academics, fees, and communication are separate modules within the same application.
 
@@ -42,15 +42,22 @@ dotnet user-secrets set "SeedAdmin:FullName" "School Administrator" --project sr
 
 Replace the password placeholders locally. They are examples only; never commit real connection strings or credentials.
 
-Restore, compile, and run from the repository root:
+Restore, compile, run the tests, and start the app from the repository root:
 
 ```sh
 dotnet restore SchoolManagement.sln
 dotnet build SchoolManagement.sln
+dotnet test SchoolManagement.sln
 dotnet run --project src/SchoolManagement.Web
 ```
 
-In Development, the app applies checked-in EF Core migrations and seeds the six roles. It creates the first Super Admin only when SeedAdmin:Email and SeedAdmin:Password are configured. Public registration is disabled; later accounts are created from User management. Anonymous visitors can submit admission applications; only Super Admins and Admission Officers can review them and access private documents. Configure SSLCOMMERZ sandbox values with User Secrets as described in the Phase 5 guide in guides/PHASE5_FEES_FINANCE_QUICK_GUIDE.md. Configure SMTP values with User Secrets as described in the Phase 6 guide in guides/PHASE6_IMPORTS_EXPORTS_COMMUNICATION_QUICK_GUIDE.md. See the Phase 1, 2, 3, 4, 5, and 6 guides in the guides directory.
+In Development, the app applies checked-in EF Core migrations and seeds the six roles. It creates the first Super Admin only when SeedAdmin:Email and SeedAdmin:Password are configured. Public registration is disabled; later accounts are created from User management. Anonymous visitors can submit admission applications; only Super Admins and Admission Officers can review them and access private documents. Configure SSLCOMMERZ sandbox values with User Secrets as described in the Phase 5 guide in guides/PHASE5_FEES_FINANCE_QUICK_GUIDE.md. Configure SMTP values with User Secrets as described in the Phase 6 guide in guides/PHASE6_IMPORTS_EXPORTS_COMMUNICATION_QUICK_GUIDE.md. See the phase guides in the guides directory.
+
+## Production preparation
+
+The app does not apply migrations automatically outside Development. Review [the Phase 7 testing and deployment guide](guides/PHASE7_TESTING_DEPLOYMENT_QUICK_GUIDE.md) before deploying. It covers required production settings, the Linux Docker Compose setup, migration order, health endpoints, backups, restore drills, and manual browser checks. Start with `.env.example`; keep `.env`, MySQL client option files, private documents, Data Protection keys, and backups out of Git. The Compose example binds the app and MySQL ports to loopback for a separately managed TLS reverse proxy.
+
+The current .NET 9 and EF Core 9 target reaches end of support on November 10, 2026. The production guide records the provider compatibility gate and requires a supported framework/provider upgrade before a production release. See the [Microsoft .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy).
 
 Follow [`AGENTS.md`](AGENTS.md) for implementation guidance. The current .NET 9 / EF Core 9 / Pomelo 9 combination was selected to match the installed SDK and provider compatibility. Upgrade the target framework after a stable compatible Pomelo release is available.
 
@@ -67,3 +74,4 @@ Follow [`AGENTS.md`](AGENTS.md) for implementation guidance. The current .NET 9 
 - [`guides/PHASE4_EXAMINATIONS_RESULTS_QUICK_GUIDE.md`](guides/PHASE4_EXAMINATIONS_RESULTS_QUICK_GUIDE.md) — examination setup, marks, approval, report cards, and revisions
 - [PHASE5_FEES_FINANCE_QUICK_GUIDE.md](guides/PHASE5_FEES_FINANCE_QUICK_GUIDE.md) — fee assignments, discount approvals, collections, receipts, sandbox checkout, refunds, and overdue reminders
 - [PHASE6_IMPORTS_EXPORTS_COMMUNICATION_QUICK_GUIDE.md](guides/PHASE6_IMPORTS_EXPORTS_COMMUNICATION_QUICK_GUIDE.md) — spreadsheets, protected downloads, announcements, messaging, SMTP, audit logs, and background jobs
+- [PHASE7_TESTING_DEPLOYMENT_QUICK_GUIDE.md](guides/PHASE7_TESTING_DEPLOYMENT_QUICK_GUIDE.md) — tests, CI, production settings, Linux containers, backups, restore drills, and deployment checks

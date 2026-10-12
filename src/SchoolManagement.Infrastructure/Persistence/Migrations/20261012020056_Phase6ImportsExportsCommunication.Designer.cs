@@ -627,16 +627,16 @@ namespace SchoolManagement.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ParentUserId")
                         .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
 
                     b.Property<int>("StudentId")
                         .HasColumnType("int");
 
                     b.Property<string>("TeacherUserId")
                         .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
 
                     b.HasKey("Id");
 
