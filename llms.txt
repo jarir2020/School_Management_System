@@ -7,12 +7,13 @@
 - [README](README.md): current repository status, planned stack, and module overview
 - [Implementation plan](plan.md): architecture, roles, data model, workflows, calculations, and seven-phase roadmap
 - [Agent instructions](AGENTS.md): implementation workflow, coding guidance, and data-protection rules
+- [.NET theory notes](dotnet-theoretical-note-for-interview.md): C#, ASP.NET Core, Blazor, EF Core, Identity, security, and interview concepts
 - [Full AI context](llms-full.txt): expanded project summary
 - [MIT License](LICENSE): repository license
 
 ## Current status
 
-Phases 1–7 are implemented in source. Phase 7 adds grade-calculation unit tests, SQLite workflow tests for admissions, marks, and payments, a NuGet vulnerability audit, CI migration and production-startup checks against MySQL 8.4, health endpoints, Docker Compose deployment files, explicit production migrations, and MySQL backup tooling. All 10 local tests passed with no reported vulnerable packages; migrations applied to a disposable MySQL 8.4 instance, and Production health returned `ready` and `live`. The Phase 6 migration remains unapplied to the developer's local MySQL because its supplied login was rejected. Browser walkthroughs and production deployment remain pending. SSLCOMMERZ needs sandbox credentials and a public HTTPS callback host; SMTP needs local credentials.
+Phases 1–7 are implemented in source. Phase 7 adds grade-calculation unit tests, SQLite workflow tests for admissions, marks, and payments, a NuGet vulnerability audit, CI migration and production-startup checks against MySQL 8.4, health endpoints, Docker Compose deployment files, explicit production migrations, and MySQL backup tooling. All 10 local tests passed with no reported vulnerable packages; migrations applied to disposable and local MySQL 8.4 databases, and Production health returned `ready` and `live`. All six migrations and 49 tables were verified in the local `school_management` database, and a backup restored successfully to an isolated database. Browser walkthroughs and production deployment remain pending. SSLCOMMERZ needs sandbox credentials and a public HTTPS callback host; SMTP needs local credentials.
 
 ## Phase walkthroughs
 

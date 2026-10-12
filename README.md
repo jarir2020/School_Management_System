@@ -68,6 +68,7 @@ Follow [`AGENTS.md`](AGENTS.md) for implementation guidance. The current .NET 9 
 - [`llms.txt`](llms.txt) — short index for AI and documentation crawlers
 - [`llms-full.txt`](llms-full.txt) — expanded project context for AI tools
 - [`LICENSE`](LICENSE) — MIT License
+- [`dotnet-theoretical-note-for-interview.md`](dotnet-theoretical-note-for-interview.md) — C#, ASP.NET Core, Blazor, EF Core, Identity, and project architecture theory notes
 - [`guides/PHASE1_THEORY_QUICK_GUIDE.md`](guides/PHASE1_THEORY_QUICK_GUIDE.md) — foundation concepts and setup walkthrough
 - [`guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md`](guides/PHASE2_ADMISSIONS_QUICK_GUIDE.md) — admissions workflow, private files, review, enrollment, and student directory
 - [`guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md`](guides/PHASE3_TEACHERS_ATTENDANCE_QUICK_GUIDE.md) — teacher setup, attendance, corrections, reports, and parent access
